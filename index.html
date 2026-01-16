@@ -3,12 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
-    <title>Focus App - Cyrillic Edition</title>
+    <title>Focus App - Localized</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Подключаем Manrope - лучший аналог Urbanist с поддержкой кириллицы -->
+    <!-- Manrope Font -->
     <link href="https://fonts.googleapis.com" rel="preconnect">
     <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -63,6 +63,34 @@
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
         }
         .task-card:active { transform: scale(0.96); }
+        
+        /* Language Toggle Switch */
+        .lang-switch {
+            background: rgba(255,255,255,0.1);
+            border-radius: 99px;
+            padding: 4px;
+            display: flex;
+            position: relative;
+        }
+        .lang-option {
+            flex: 1;
+            text-align: center;
+            padding: 6px 0;
+            font-size: 12px;
+            font-weight: 800;
+            z-index: 2;
+            transition: color 0.3s;
+            cursor: pointer;
+        }
+        .lang-active-bg {
+            position: absolute;
+            top: 4px; bottom: 4px;
+            width: 50%;
+            background: #00dc82;
+            border-radius: 99px;
+            z-index: 1;
+            transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden relative flex flex-col items-center" id="app-body" oncontextmenu="return false;">
@@ -81,22 +109,23 @@
             </div>
 
             <div class="px-6 flex justify-between items-center w-full mb-4 z-30">
-                <button id="settings-btn" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full hover:bg-white/10 transition-colors active:scale-95 group">
-                    <span class="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-white" id="settings-icon">format_paint</span>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 group-hover:text-white" id="settings-text">ТЕМА 1</span>
+                <!-- SETTINGS BUTTON (Replaced Theme Button) -->
+                <button onclick="toggleSettingsModal(); haptic('light')" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full hover:bg-white/10 transition-colors active:scale-95 group">
+                    <span class="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-white">settings</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 group-hover:text-white" id="lbl-settings">SETTINGS</span>
                 </button>
 
                 <button onclick="toggleApiKeyModal(); haptic('light');" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full select-none active:scale-95 transition-transform" id="status-container">
                     <div class="w-2 h-2 rounded-full bg-gray-500" id="status-dot"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300" id="agent-status-text">КЛЮЧ</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300" id="agent-status-text">KEY</span>
                 </button>
             </div>
 
             <nav class="flex p-1 bg-brand-gray/50 rounded-2xl relative mx-6 border border-white/5 shadow-inner">
                 <div class="absolute top-1 bottom-1 left-1 w-[32%] bg-brand-green rounded-xl transition-all duration-300 ease-out z-0" id="tab-indicator" style="transform: translateX(0%);"></div>
-                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-brand-black" id="btn-Task" onclick="switchTab('Task')">ЗАДАЧИ</button>
-                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Long" onclick="switchTab('Long')">ДОЛГИЕ</button>
-                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Routine" onclick="switchTab('Routine')">РУТИНА</button>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-brand-black" id="btn-Task" onclick="switchTab('Task')">TASK</button>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Long" onclick="switchTab('Long')">LONG</button>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Routine" onclick="switchTab('Routine')">ROUTINE</button>
             </nav>
         </header>
 
@@ -106,7 +135,7 @@
             
             <div class="hidden flex flex-col items-center justify-center h-64 opacity-30" id="empty-state">
                 <span class="material-symbols-outlined text-5xl mb-2">mic</span>
-                <p class="text-sm font-semibold">Нажми, чтобы добавить</p>
+                <p class="text-sm font-semibold" id="lbl-tap">Tap to speak</p>
             </div>
         </main>
 
@@ -126,15 +155,46 @@
         </div>
     </div>
 
+    <!-- SETTINGS MODAL -->
+    <div class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none opacity-0 hidden transition-opacity duration-200" id="settings-modal">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-md" onclick="toggleSettingsModal()"></div>
+        <div class="bg-brand-gray border border-brand-green/30 w-[90%] max-w-sm rounded-3xl p-6 relative pointer-events-auto transform scale-95 transition-transform duration-200">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white" id="lbl-modal-settings">Settings</h2>
+                <button onclick="toggleSettingsModal()" class="text-gray-400"><span class="material-symbols-outlined">close</span></button>
+            </div>
+
+            <!-- Language Section -->
+            <div class="mb-6">
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2" id="lbl-language">Language</p>
+                <div class="lang-switch" onclick="toggleLanguage()">
+                    <div class="lang-active-bg" id="lang-bg"></div>
+                    <div class="lang-option text-brand-black" id="lang-en">English</div>
+                    <div class="lang-option text-gray-400" id="lang-ru">Русский</div>
+                </div>
+            </div>
+
+            <!-- Theme Section -->
+            <div class="mb-6">
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2" id="lbl-theme">Theme</p>
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="setTheme(0)" class="h-10 rounded-xl bg-[#1e293b] border-2 border-white/20 hover:border-brand-green transition-colors"></button>
+                    <button onclick="setTheme(1)" class="h-10 rounded-xl bg-[#052e16] border-2 border-white/20 hover:border-brand-green transition-colors"></button>
+                    <button onclick="setTheme(2)" class="h-10 rounded-xl bg-[#042f2e] border-2 border-white/20 hover:border-brand-green transition-colors"></button>
+                    <button onclick="setTheme(3)" class="h-10 rounded-xl bg-[#1e1b4b] border-2 border-white/20 hover:border-brand-green transition-colors"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- API MODAL -->
     <div class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none opacity-0 hidden transition-opacity duration-200" id="api-modal">
         <div class="absolute inset-0 bg-black/90 backdrop-blur-md" onclick="toggleApiKeyModal()"></div>
         <div class="bg-brand-gray border border-brand-green/30 w-[90%] max-w-sm rounded-3xl p-6 relative pointer-events-auto transform scale-95 transition-transform duration-200">
             <h2 class="text-xl font-bold text-white mb-2">Gemini API Key</h2>
-            <p class="text-[11px] text-gray-400 mb-4">Ключ хранится только на вашем устройстве.</p>
-            <input type="password" id="api-input" placeholder="Вставьте ключ..." class="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white mb-4 focus:border-brand-green outline-none text-sm font-mono">
-            <button onclick="saveApiKey()" class="w-full bg-brand-green text-brand-black font-bold py-3.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-brand-green/20">Подключить AI</button>
-            <button onclick="toggleApiKeyModal()" class="w-full mt-3 text-gray-500 text-xs py-2">Закрыть</button>
+            <p class="text-[11px] text-gray-400 mb-4" id="lbl-apikey-desc">Key is stored locally.</p>
+            <input type="password" id="api-input" placeholder="..." class="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white mb-4 focus:border-brand-green outline-none text-sm font-mono">
+            <button onclick="saveApiKey()" class="w-full bg-brand-green text-brand-black font-bold py-3.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-brand-green/20" id="btn-connect">Connect AI</button>
         </div>
     </div>
 
@@ -143,20 +203,20 @@
         <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="closeModal()"></div>
         <div class="bg-brand-gray border border-white/10 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full transition-transform duration-300 ease-out pointer-events-auto" id="action-sheet">
             <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
-            <h3 class="text-xl font-bold text-white mb-1" id="modal-task-title">Название</h3>
-            <p class="text-[10px] text-gray-500 mb-6 italic truncate" id="modal-original-command">Оригинал</p>
+            <h3 class="text-xl font-bold text-white mb-1" id="modal-task-title">Title</h3>
+            <p class="text-[10px] text-gray-500 mb-6 italic truncate" id="modal-original-command">Original</p>
             <div class="grid grid-cols-2 gap-3">
                 <button class="col-span-2 bg-brand-green text-brand-black font-extrabold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('done')">
-                    <span class="material-symbols-outlined">check_circle</span> Готово
+                    <span class="material-symbols-outlined">check_circle</span> <span id="lbl-done">Done</span>
                 </button>
                 <button class="bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('up')">
-                    <span class="material-symbols-outlined">arrow_upward</span> Приоритет
+                    <span class="material-symbols-outlined">arrow_upward</span> <span id="lbl-prio">Priority</span>
                 </button>
                 <button class="bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('down')">
-                    <span class="material-symbols-outlined">arrow_downward</span> Снизить
+                    <span class="material-symbols-outlined">arrow_downward</span> <span id="lbl-lower">Lower</span>
                 </button>
                 <button class="col-span-2 text-red-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-xs" onclick="taskAction('delete')">
-                    <span class="material-symbols-outlined text-lg">delete</span> Удалить задачу
+                    <span class="material-symbols-outlined text-lg">delete</span> <span id="lbl-delete">Delete</span>
                 </button>
             </div>
         </div>
@@ -180,8 +240,31 @@
         const AVAILABLE_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'];
         const themes = ['#1e293b', '#052e16', '#042f2e', '#1e1b4b'];
         
+        // --- LOCALIZATION DICTIONARY ---
+        const i18n = {
+            en: {
+                task: "TASK", long: "LONG", routine: "ROUTINE", settings: "SETTINGS", key: "KEY",
+                tap: "Tap to speak", modal_settings: "Settings", lang: "Language", theme: "Theme",
+                api_desc: "Key is stored locally.", connect: "Connect AI",
+                done: "Done", prio: "Priority", lower: "Lower", delete: "Delete",
+                quick: "Quick Tasks", main: "MAIN", side: "SIDE",
+                agent_ready: "READY", agent_think: "THINKING",
+                agent_prompt_lang: "English"
+            },
+            ru: {
+                task: "ЗАДАЧИ", long: "ДОЛГИЕ", routine: "РУТИНА", settings: "НАСТРОЙКИ", key: "КЛЮЧ",
+                tap: "Нажми, чтобы добавить", modal_settings: "Настройки", lang: "Язык", theme: "Тема",
+                api_desc: "Ключ хранится локально.", connect: "Подключить",
+                done: "Готово", prio: "Приоритет", lower: "Снизить", delete: "Удалить",
+                quick: "Быстрые задачи", main: "ГЛАВНОЕ", side: "ВТОРОЕ",
+                agent_ready: "ГОТОВ", agent_think: "ДУМАЕТ",
+                agent_prompt_lang: "Russian"
+            }
+        };
+
         const state = {
-            currentTab: 'Task', tasks: [], currentThemeIndex: 0, apiKey: null, isRecording: false
+            currentTab: 'Task', tasks: [], currentThemeIndex: 0, apiKey: null, isRecording: false,
+            language: 'en' // Default
         };
 
         // --- CORE LOGIC ---
@@ -196,9 +279,21 @@
             setAgentStatus('Thinking');
             haptic('medium');
 
-            const prompt = `You are 'Focus' AI. Context: tab "${state.currentTab}". 
-            Input: "${userText}". Output JSON array: [{"title": "short action", "original": "${userText}", "type": "${state.currentTab}", "priority": 1}]
-            Rules: Use Russian for title. Max 4 words.`;
+            // Force output language based on settings, regardless of input
+            const targetLang = i18n[state.language].agent_prompt_lang; 
+            
+            const prompt = `You are 'Focus' AI. 
+            Context: Tab "${state.currentTab}". 
+            User Input: "${userText}". 
+            
+            Instructions:
+            1. Extract tasks into JSON array.
+            2. "title": Translate to ${targetLang} and summarize (Max 4 words).
+            3. "original": Keep original text.
+            4. "type": Force to "${state.currentTab}".
+            5. "priority": 1 (High) or 2 (Normal) or 3 (Quick).
+            
+            Output JSON: [{"title": "...", "original": "...", "type": "...", "priority": 1}]`;
 
             let success = false;
             for (const model of AVAILABLE_MODELS) {
@@ -211,7 +306,6 @@
                     if (!resp.ok) continue;
                     const data = await resp.json();
                     let text = data.candidates[0].content.parts[0].text;
-                    // Очистка от Markdown
                     text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
                     
                     const newTasks = JSON.parse(text);
@@ -225,42 +319,84 @@
             if (!success) { setAgentStatus('Ready'); haptic('error'); }
         }
 
-        // --- UI RENDER ---
+        // --- UI RENDER & I18N ---
+        function applyLocalization() {
+            const t = i18n[state.language];
+            document.getElementById('btn-Task').innerText = t.task;
+            document.getElementById('btn-Long').innerText = t.long;
+            document.getElementById('btn-Routine').innerText = t.routine;
+            document.getElementById('lbl-settings').innerText = t.settings;
+            document.getElementById('agent-status-text').innerText = t.key;
+            document.getElementById('lbl-tap').innerText = t.tap;
+            document.getElementById('lbl-modal-settings').innerText = t.modal_settings;
+            document.getElementById('lbl-language').innerText = t.lang;
+            document.getElementById('lbl-theme').innerText = t.theme;
+            document.getElementById('lbl-apikey-desc').innerText = t.api_desc;
+            document.getElementById('btn-connect').innerText = t.connect;
+            document.getElementById('lbl-done').innerText = t.done;
+            document.getElementById('lbl-prio').innerText = t.prio;
+            document.getElementById('lbl-lower').innerText = t.lower;
+            document.getElementById('lbl-delete').innerText = t.delete;
+            
+            // Switch UI
+            const isEn = state.language === 'en';
+            document.getElementById('lang-bg').style.transform = isEn ? 'translateX(0%)' : 'translateX(100%)';
+            document.getElementById('lang-en').classList.toggle('text-brand-black', isEn);
+            document.getElementById('lang-en').classList.toggle('text-gray-400', !isEn);
+            document.getElementById('lang-ru').classList.toggle('text-brand-black', !isEn);
+            document.getElementById('lang-ru').classList.toggle('text-gray-400', isEn);
+
+            renderTasks(); // Re-render cards to translate Priority labels
+        }
+
+        function toggleLanguage() {
+            state.language = state.language === 'en' ? 'ru' : 'en';
+            localStorage.setItem('focusLang', state.language);
+            applyLocalization();
+            haptic('selection');
+        }
+
         function renderTasks() {
             const grid = document.getElementById('task-grid');
             grid.innerHTML = '';
             const active = state.tasks.filter(t => t.type === state.currentTab && !t.completed).sort((a,b) => a.priority - b.priority);
             document.getElementById('empty-state').classList.toggle('hidden', active.length > 0);
 
-            active.filter(t => t.priority !== 3).forEach(t => {
-                grid.appendChild(createCard(t, t.priority === 1 ? 'col-span-2 aspect-[2.1/1] text-xl' : 'col-span-1 aspect-square text-base'));
+            const t = i18n[state.language];
+
+            active.filter(t => t.priority !== 3).forEach(task => {
+                grid.appendChild(createCard(task, task.priority === 1 ? 'col-span-2 aspect-[2.1/1] text-xl' : 'col-span-1 aspect-square text-base', t));
             });
 
             const p3 = active.filter(t => t.priority === 3);
             if(p3.length > 0) {
                 const box = document.createElement('div');
                 box.className = 'col-span-2 bg-white/5 rounded-3xl p-4 border border-white/5 mt-2';
-                box.innerHTML = '<div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">Быстрые задачи</div>';
-                p3.forEach(t => {
+                box.innerHTML = `<div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">${t.quick}</div>`;
+                p3.forEach(task => {
                     const row = document.createElement('div');
                     row.className = 'bg-white/5 p-3.5 rounded-xl flex justify-between items-center mb-2 last:mb-0 active:scale-95 transition-transform';
-                    row.onclick = () => openActionModal(t.id);
-                    row.innerHTML = `<span class="text-sm font-medium text-gray-200 truncate">${t.title}</span><div class="w-1 h-1 rounded-full bg-brand-green/40"></div>`;
+                    row.onclick = () => openActionModal(task.id);
+                    row.innerHTML = `<span class="text-sm font-medium text-gray-200 truncate">${task.title}</span><div class="w-1 h-1 rounded-full bg-brand-green/40"></div>`;
                     box.appendChild(row);
                 });
                 grid.appendChild(box);
             }
         }
 
-        function createCard(t, cls) {
+        function createCard(task, cls, t) {
             const d = document.createElement('div');
+            // Date Localization
+            const dateStr = new Date().toLocaleDateString(state.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
+            
             d.className = `task-card bg-white text-brand-black rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between ${cls}`;
-            d.onclick = () => openActionModal(t.id);
+            d.onclick = () => openActionModal(task.id);
             d.innerHTML = `
                 <div class="flex justify-between items-start opacity-50">
-                    <span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${t.priority === 1 ? 'ГЛАВНОЕ' : 'ВТОРОЕ'}</span>
+                    <span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${task.priority === 1 ? t.main : t.side}</span>
+                    <span class="text-[9px] font-bold uppercase">${dateStr}</span>
                 </div>
-                <div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${t.title}</h3></div>
+                <div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${task.title}</h3></div>
                 <div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>
             `;
             return d;
@@ -304,10 +440,30 @@
             saveTasks(); renderTasks(); closeModal();
         }
 
+        // --- SETTINGS ---
+        function toggleSettingsModal() {
+            const m = document.getElementById('settings-modal');
+            m.classList.toggle('hidden'); setTimeout(()=>m.classList.toggle('opacity-0'),10);
+        }
+
+        function setTheme(idx) {
+            state.currentThemeIndex = idx;
+            const color = themes[idx];
+            document.getElementById('app-body').style.backgroundColor = color;
+            tg.setHeaderColor(color); tg.setBackgroundColor(color);
+            localStorage.setItem('focusThemeIndex', idx);
+            haptic('selection');
+        }
+
         // --- VOICE ---
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (Rec) {
-            const r = new Rec(); r.lang = 'ru-RU';
+            const r = new Rec(); 
+            // Dynamic Language for Recognition?
+            // r.lang = state.language === 'ru' ? 'ru-RU' : 'en-US'; 
+            // Better to keep input language flexible or auto, but for now defaults to RU if user speaks Russian usually
+            r.lang = 'ru-RU'; 
+
             r.onstart = () => { 
                 state.isRecording = true; haptic('medium');
                 document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red');
@@ -327,12 +483,13 @@
         function setAgentStatus(status) {
             const dot = document.getElementById('status-dot');
             const text = document.getElementById('agent-status-text');
+            const t = i18n[state.language];
             if (status === 'Thinking') {
                 dot.className = "w-2 h-2 rounded-full bg-blue-500 animate-bounce";
-                text.innerText = "ДУМАЕТ";
+                text.innerText = t.agent_think;
             } else {
                 dot.className = "w-2 h-2 rounded-full bg-brand-green animate-pulse";
-                text.innerText = "ГОТОВ";
+                text.innerText = t.agent_ready; // or KEY if not ready? logic simplified here
             }
         }
 
@@ -351,20 +508,19 @@
             m.classList.toggle('hidden'); setTimeout(()=>m.classList.toggle('opacity-0'),10);
         }
 
-        document.getElementById('settings-btn').onclick = () => {
-            state.currentThemeIndex = (state.currentThemeIndex + 1) % themes.length;
-            const color = themes[state.currentThemeIndex];
-            document.getElementById('app-body').style.backgroundColor = color;
-            document.getElementById('settings-text').textContent = `ТЕМА ${state.currentThemeIndex + 1}`;
-            tg.setHeaderColor(color); tg.setBackgroundColor(color);
-            localStorage.setItem('focusThemeIndex', state.currentThemeIndex);
-            haptic('selection');
-        };
-
         document.addEventListener('DOMContentLoaded', () => {
-            loadTasks(); checkApiKey(); renderTasks(); switchTab('Task');
+            // Load saved settings
             const savedTheme = localStorage.getItem('focusThemeIndex');
-            if(savedTheme) { state.currentThemeIndex = parseInt(savedTheme); }
+            if(savedTheme) setTheme(parseInt(savedTheme));
+            
+            const savedLang = localStorage.getItem('focusLang');
+            if(savedLang) state.language = savedLang;
+            
+            applyLocalization();
+            loadTasks(); 
+            checkApiKey(); 
+            // Initial render called by applyLocalization
+            switchTab('Task');
         });
     </script>
 </body>
