@@ -655,8 +655,49 @@
         async function runAgent(userText) {
             setAgentStatus('Thinking');
             haptic('medium');
-            const targetLang = i18n[state.language].agent_prompt_lang; 
-            const prompt = `You are 'Focus' AI. Context: Tab "${state.currentTab}". User Input: "${userText}". Output JSON: [{"title": "short translated to ${targetLang}", "original": "${userText}", "type": "${state.currentTab}", "priority": 1}]`;
+            const targetLang = i18n[state.language].agent_prompt_lang;
+            
+            const prompt = `You are 'Focus' - a calming, stress-reducing AI task assistant.
+
+CONTEXT:
+- Current tab: "${state.currentTab}" (Task = daily actions, Long = long-term goals, Routine = recurring habits)
+- User said: "${userText}"
+- Language: ${targetLang}
+
+YOUR ROLE:
+1. Parse user input into actionable tasks
+2. Break complex requests into smaller, manageable steps (reduces overwhelm)
+3. Add gentle, supportive micro-tasks when appropriate (e.g., "Take a deep breath", "Stretch for 1 min")
+4. Assign smart priorities based on urgency and effort
+
+PRIORITY RULES:
+- 1 (MAIN): Critical today, high impact, requires focus
+- 2 (SIDE): Important but not urgent, can wait
+- 3 (QUICK): Takes <5 min, easy wins, low effort
+
+EXAMPLES:
+Input: "I need to prepare presentation for tomorrow and I'm stressed"
+Output: [
+  {"title": "Take 3 deep breaths", "priority": 3},
+  {"title": "Create presentation outline", "priority": 1},
+  {"title": "Add content to slides", "priority": 1},
+  {"title": "Review and polish", "priority": 2}
+]
+
+Input: "Buy groceries"
+Output: [{"title": "Buy groceries", "priority": 3}]
+
+Input: "Learn Python programming"
+Output: [
+  {"title": "Find Python beginner course", "priority": 2},
+  {"title": "Set up coding environment", "priority": 2},
+  {"title": "Complete first lesson", "priority": 1}
+]
+
+OUTPUT FORMAT (JSON array only, no markdown):
+[{"title": "short task in ${targetLang}", "original": "${userText}", "type": "${state.currentTab}", "priority": 1-3}]
+
+Generate tasks now:`;
             
             let success = false;
             for (const model of AVAILABLE_MODELS) {
