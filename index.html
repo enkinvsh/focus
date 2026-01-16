@@ -137,19 +137,8 @@
             66.66% { transform: scale(1.6); opacity: 1; box-shadow: 0 0 80px rgba(0,220,130,0.6); }
             100% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 30px rgba(0,220,130,0.3); }
         }
-
-        #sync-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(4px);
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.5s ease;
-        }
+        
+        .paused { animation-play-state: paused !important; }
     </style>
 </head>
 <body class="h-screen w-full overflow-hidden relative flex flex-col items-center" id="app-body" oncontextmenu="return false;">
@@ -205,12 +194,6 @@
              <p class="text-white/20 text-[10px] uppercase tracking-[0.3em]">Minimalist Productivity</p>
         </div>
 
-    </div>
-
-    <!-- SYNC OVERLAY -->
-    <div id="sync-overlay" style="display: none;">
-        <div class="w-12 h-12 border-4 border-brand-green border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="text-sm font-bold tracking-widest text-brand-green animate-pulse">SYNCING CLOUD...</p>
     </div>
 
     <div class="w-full max-w-md flex flex-col h-full relative">
@@ -311,11 +294,23 @@
                 <div class="absolute w-64 h-64 rounded-full bg-brand-green/5 animate-pulse"></div>
                 <div class="absolute w-48 h-48 rounded-full bg-brand-green/10 animate-pulse delay-75"></div>
                 
-                <div id="breath-circle" class="w-32 h-32 rounded-full bg-gradient-to-br from-brand-green to-emerald-600 shadow-[0_0_50px_rgba(0,220,130,0.4)] flex items-center justify-center z-10 transform transition-transform duration-75">
+                <div id="breath-circle" onclick="toggleBreathPause()" class="w-32 h-32 rounded-full bg-gradient-to-br from-brand-green to-emerald-600 shadow-[0_0_50px_rgba(0,220,130,0.4)] flex items-center justify-center z-10 transform transition-transform duration-75 cursor-pointer active:scale-95">
                     <span class="material-symbols-outlined text-brand-black text-5xl opacity-75">spa</span>
                 </div>
             </div>
             
+            <!-- PAUSE MENU -->
+            <div id="breath-pause-menu" class="absolute inset-0 z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300 backdrop-blur-sm bg-black/40">
+                 <div class="glass-panel p-6 rounded-3xl flex flex-col gap-3 w-48 shadow-2xl transform scale-90 transition-transform duration-300" id="breath-menu-card">
+                    <button onclick="resumeBreathing()" class="bg-brand-green text-brand-black font-extrabold py-3 rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-brand-green/20" id="btn-breath-continue">
+                        Continue
+                    </button>
+                    <button onclick="exitBreathing()" class="bg-white/10 text-white/80 font-bold py-3 rounded-xl hover:bg-white/20 active:scale-95 transition-all" id="btn-breath-exit">
+                        Exit
+                    </button>
+                </div>
+            </div>
+
             <div class="text-center h-24 flex flex-col items-center justify-center z-20">
                 <h2 id="breath-text" class="text-3xl font-extrabold text-white tracking-tight mb-1 transition-all duration-300">Get Ready</h2>
                 <p id="breath-subtext" class="text-brand-green font-bold uppercase tracking-widest text-xs opacity-80">Relax</p>
@@ -361,6 +356,8 @@
         // BREATHING EXERCISE LOGIC
         let breathInterval;
         let breathTimer;
+        let breathElapsed = 0;
+        let currentBreathCycle = null;
         
         function openBreathingModal() {
             const m = document.getElementById('breathing-modal');
@@ -379,6 +376,11 @@
             // Reset state
             progress.style.transition = 'none';
             progress.style.width = '0%';
+            
+            // Ensure pause menu is hidden
+            document.getElementById('breath-pause-menu').classList.add('hidden', 'opacity-0');
+            document.getElementById('breath-menu-card').classList.add('scale-90');
+            circle.classList.remove('paused');
             
             text.innerText = t.breath_ready;
             sub.innerText = t.breath_relax;
@@ -402,25 +404,29 @@
             const countText = document.getElementById('breath-cycle-count');
             const t = i18n[state.language];
             
+            // Ensure no pause state
+            circle.classList.remove('paused');
+            document.getElementById('breath-pause-menu').classList.add('hidden', 'opacity-0');
+            
             // Apply animation class
             circle.style.animation = 'breathe-cycle 12s ease-in-out infinite';
             
             const totalTime = 60;
-            let elapsed = 0;
+            breathElapsed = 0;
             
             // Start progress bar
             progress.style.transition = `width ${totalTime}s linear`;
             progress.style.width = '100%';
             
             // Cycle logic
-            const cycle = () => {
-                if (elapsed >= totalTime) {
+            currentBreathCycle = () => {
+                if (breathElapsed >= totalTime) {
                     finishBreathing();
                     return;
                 }
 
-                const cycleTime = elapsed % 12; // 0-11
-                const currentCycle = Math.floor(elapsed / 12) + 1;
+                const cycleTime = breathElapsed % 12; // 0-11
+                const currentCycle = Math.floor(breathElapsed / 12) + 1;
                 countText.innerText = `${t.breath_cycle} ${currentCycle}/5`;
                 
                 if (cycleTime < 4) {
@@ -443,11 +449,11 @@
                     if (cycleTime === 8) haptic('light');
                 }
                 
-                elapsed++;
+                breathElapsed++;
             };
             
-            cycle(); // Run immediately
-            breathInterval = setInterval(cycle, 1000);
+            currentBreathCycle(); // Run immediately
+            breathInterval = setInterval(currentBreathCycle, 1000);
         }
         
         function finishBreathing() {
@@ -468,6 +474,67 @@
             setTimeout(() => {
                 closeBreathingModal();
             }, 2500);
+        }
+
+        function toggleBreathPause() {
+            const menu = document.getElementById('breath-pause-menu');
+            if (menu.classList.contains('hidden')) {
+                pauseBreathing();
+            } else {
+                resumeBreathing();
+            }
+        }
+
+        function pauseBreathing() {
+            clearInterval(breathInterval);
+            const circle = document.getElementById('breath-circle');
+            const menu = document.getElementById('breath-pause-menu');
+            const progress = document.getElementById('breath-progress');
+            
+            circle.classList.add('paused');
+            
+            // Freeze progress bar
+            const currentWidth = window.getComputedStyle(progress).width;
+            progress.style.transition = 'none';
+            progress.style.width = currentWidth;
+
+            menu.classList.remove('hidden');
+            // Small delay for fade in
+            setTimeout(() => {
+                menu.classList.remove('opacity-0');
+                document.getElementById('breath-menu-card').classList.remove('scale-90');
+            }, 10);
+            
+            haptic('light');
+        }
+
+        function resumeBreathing() {
+            const circle = document.getElementById('breath-circle');
+            const menu = document.getElementById('breath-pause-menu');
+            const progress = document.getElementById('breath-progress');
+            const t = i18n[state.language];
+            
+            menu.classList.add('opacity-0');
+            document.getElementById('breath-menu-card').classList.add('scale-90');
+            
+            setTimeout(() => {
+                menu.classList.add('hidden');
+                circle.classList.remove('paused');
+                
+                // Resume progress bar
+                const totalTime = 60;
+                const remaining = totalTime - breathElapsed;
+                progress.style.transition = `width ${remaining}s linear`;
+                progress.style.width = '100%';
+                
+                breathInterval = setInterval(currentBreathCycle, 1000);
+            }, 300);
+            
+            haptic('light');
+        }
+
+        function exitBreathing() {
+            closeBreathingModal();
         }
 
         function closeBreathingModal() {
@@ -498,17 +565,8 @@
             
             setTimeout(() => {
                 startScreen.style.display = 'none';
-                
-                const syncOverlay = document.getElementById('sync-overlay');
-                syncOverlay.style.display = 'flex';
-                syncOverlay.style.opacity = '1';
-                
-                loadTasks(() => {
-                    syncOverlay.style.opacity = '0';
-                    setTimeout(() => syncOverlay.style.display = 'none', 500);
-                    applyLocalization();
-                    switchTab('Task');
-                });
+                applyLocalization();
+                switchTab('Task');
             }, 400);
         }
 
@@ -539,7 +597,8 @@
                 breath_hold: "Hold", breath_keep: "Keep it",
                 breath_out: "Breathe Out", breath_release: "Release",
                 breath_done: "Ready to Focus", breath_great: "Great job",
-                breath_cycle: "Cycle"
+                breath_cycle: "Cycle",
+                breath_continue: "Continue", breath_exit: "Exit"
             },
             ru: {
                 task: "ЗАДАЧИ", long: "ДОЛГИЕ", routine: "РУТИНА", settings: "НАСТРОЙКИ", agent: "АГЕНТ",
@@ -553,7 +612,8 @@
                 breath_hold: "Задержка", breath_keep: "Держи",
                 breath_out: "Выдох", breath_release: "Отпускай",
                 breath_done: "Готов к фокусу", breath_great: "Отлично",
-                breath_cycle: "Цикл"
+                breath_cycle: "Цикл",
+                breath_continue: "Продолжить", breath_exit: "Выйти"
             }
         };
 
@@ -637,6 +697,8 @@
             document.getElementById('lbl-prio').innerText = t.prio;
             document.getElementById('lbl-lower').innerText = t.lower;
             document.getElementById('lbl-delete').innerText = t.delete;
+            document.getElementById('btn-breath-continue').innerText = t.breath_continue;
+            document.getElementById('btn-breath-exit').innerText = t.breath_exit;
             const isEn = state.language === 'en';
             document.getElementById('lang-bg').style.transform = isEn ? 'translateX(0%)' : 'translateX(100%)';
             document.getElementById('lang-en').classList.toggle('text-brand-black', isEn);
@@ -769,6 +831,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('focusThemeIndex'); if(savedTheme) setTheme(parseInt(savedTheme));
             const savedLang = localStorage.getItem('focusLang'); if(savedLang) state.language = savedLang;
+            loadTasks(() => {});
         });
     </script>
 </body>
