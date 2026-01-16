@@ -12,12 +12,16 @@
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
-        try {
-            if (tg.requestFullscreen) {
-                tg.requestFullscreen();
-            }
-        } catch (e) { console.log('Fullscreen not supported'); }
         tg.enableClosingConfirmation();
+        
+        // Fullscreen будет запрошен при нажатии кнопки Start
+        function requestFullscreenMode() {
+            try {
+                if (tg.requestFullscreen) {
+                    tg.requestFullscreen();
+                }
+            } catch (e) { console.log('Fullscreen not supported:', e); }
+        }
     </script>
     
     <!-- Manrope Font -->
@@ -120,8 +124,23 @@
 </head>
 <body class="h-screen w-full overflow-hidden relative flex flex-col items-center" id="app-body" oncontextmenu="return false;">
     
+    <!-- START SCREEN (для запуска fullscreen по user gesture) -->
+    <div id="start-screen" class="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-brand-black">
+        <div class="flex flex-col items-center gap-6">
+            <div class="w-24 h-24 rounded-3xl bg-brand-green flex items-center justify-center shadow-[0_0_60px_rgba(0,220,130,0.5)]">
+                <span class="material-symbols-outlined text-brand-black text-5xl">target</span>
+            </div>
+            <h1 class="text-3xl font-extrabold text-white tracking-tight">Focus</h1>
+            <p class="text-gray-400 text-sm max-w-[200px] text-center">AI-powered task manager</p>
+            <button id="start-btn" onclick="startApp()" class="mt-4 px-10 py-4 bg-brand-green text-brand-black font-extrabold text-lg rounded-2xl shadow-[0_0_30px_rgba(0,220,130,0.4)] active:scale-95 transition-transform flex items-center gap-2">
+                <span class="material-symbols-outlined">play_arrow</span>
+                Start
+            </button>
+        </div>
+    </div>
+
     <!-- SYNC OVERLAY -->
-    <div id="sync-overlay">
+    <div id="sync-overlay" style="display: none;">
         <div class="w-12 h-12 border-4 border-brand-green border-t-transparent rounded-full animate-spin mb-4"></div>
         <p class="text-sm font-bold tracking-widest text-brand-green animate-pulse">SYNCING CLOUD...</p>
     </div>
@@ -240,6 +259,31 @@
     <script>
         // Основной объект tg уже инициализирован в head, здесь только доп. настройки если нужно
         const PROXY_URL = 'https://focus.enkinvsh.workers.dev';
+
+        function startApp() {
+            requestFullscreenMode();
+            haptic('medium');
+            
+            const startScreen = document.getElementById('start-screen');
+            startScreen.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+            startScreen.style.opacity = '0';
+            startScreen.style.transform = 'scale(1.1)';
+            
+            setTimeout(() => {
+                startScreen.style.display = 'none';
+                
+                const syncOverlay = document.getElementById('sync-overlay');
+                syncOverlay.style.display = 'flex';
+                syncOverlay.style.opacity = '1';
+                
+                loadTasks(() => {
+                    syncOverlay.style.opacity = '0';
+                    setTimeout(() => syncOverlay.style.display = 'none', 500);
+                    applyLocalization();
+                    switchTab('Task');
+                });
+            }, 400);
+        }
 
         function haptic(type) {
             if (!tg.HapticFeedback) return;
@@ -486,14 +530,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('focusThemeIndex'); if(savedTheme) setTheme(parseInt(savedTheme));
             const savedLang = localStorage.getItem('focusLang'); if(savedLang) state.language = savedLang;
-            
-            document.getElementById('sync-overlay').style.opacity = '1';
-            loadTasks(() => {
-                const overlay = document.getElementById('sync-overlay');
-                overlay.style.opacity = '0';
-                setTimeout(() => overlay.style.display = 'none', 500);
-                applyLocalization(); switchTab('Task');
-            });
         });
     </script>
 </body>
