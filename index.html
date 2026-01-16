@@ -99,7 +99,7 @@
         
         <!-- HEADER -->
         <header class="w-full z-20 flex flex-col bg-gradient-to-b from-black/80 via-black/40 to-transparent pb-4 relative pt-4">
-            <div class="w-full h-[60px] shrink-0"></div> 
+            <div class="w-full h-[58px] shrink-0" id="header-spacer"></div> 
 
             <div class="w-full flex justify-center items-center mb-4 relative z-30">
                 <h1 class="text-2xl font-extrabold tracking-tight text-white select-none hover:text-brand-green transition-colors cursor-pointer flex items-center gap-2" onclick="haptic('light')" id="focus-title-btn">
@@ -108,9 +108,8 @@
                 </h1>
             </div>
 
-            <!-- ALIGNMENT FIX: Changed px-6 to px-4 to match grid -->
+            <!-- GRID ALIGNMENT: px-4 -->
             <div class="px-4 flex justify-between items-center w-full mb-4 z-30">
-                <!-- SETTINGS BUTTON -->
                 <button onclick="toggleSettingsModal(); haptic('light')" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full hover:bg-white/10 transition-colors active:scale-95 group">
                     <span class="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-white">settings</span>
                     <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 group-hover:text-white" id="lbl-settings">SETTINGS</span>
@@ -122,7 +121,6 @@
                 </button>
             </div>
 
-            <!-- ALIGNMENT FIX: Changed mx-6 to mx-4 -->
             <nav class="flex p-1 bg-brand-gray/50 rounded-2xl relative mx-4 border border-white/5 shadow-inner">
                 <div class="absolute top-1 bottom-1 left-1 w-[32%] bg-brand-green rounded-xl transition-all duration-300 ease-out z-0" id="tab-indicator" style="transform: translateX(0%);"></div>
                 <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-brand-black" id="btn-Task" onclick="switchTab('Task')">TASK</button>
@@ -159,15 +157,12 @@
 
     <!-- SETTINGS MODAL -->
     <div class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none opacity-0 hidden transition-opacity duration-200" id="settings-modal">
-        <!-- BACKDROP CLICK CLOSES MODAL -->
-        <div class="absolute inset-0 bg-black/90 backdrop-blur-md" onclick="toggleSettingsModal()"></div>
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-md pointer-events-auto" onclick="toggleSettingsModal()"></div>
         <div class="bg-brand-gray border border-brand-green/30 w-[90%] max-w-sm rounded-3xl p-6 relative pointer-events-auto transform scale-95 transition-transform duration-200">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-bold text-white" id="lbl-modal-settings">Settings</h2>
                 <button onclick="toggleSettingsModal()" class="text-gray-400"><span class="material-symbols-outlined">close</span></button>
             </div>
-
-            <!-- Language Section -->
             <div class="mb-6">
                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2" id="lbl-language">Language</p>
                 <div class="lang-switch" onclick="toggleLanguage()">
@@ -176,8 +171,6 @@
                     <div class="lang-option text-gray-400" id="lang-ru">Русский</div>
                 </div>
             </div>
-
-            <!-- Theme Section -->
             <div class="mb-6">
                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2" id="lbl-theme">Theme</p>
                 <div class="grid grid-cols-4 gap-2">
@@ -192,8 +185,7 @@
 
     <!-- API MODAL -->
     <div class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none opacity-0 hidden transition-opacity duration-200" id="api-modal">
-        <!-- BACKDROP CLICK CLOSES MODAL -->
-        <div class="absolute inset-0 bg-black/90 backdrop-blur-md" onclick="toggleApiKeyModal()"></div>
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-md pointer-events-auto" onclick="toggleApiKeyModal()"></div>
         <div class="bg-brand-gray border border-brand-green/30 w-[90%] max-w-sm rounded-3xl p-6 relative pointer-events-auto transform scale-95 transition-transform duration-200">
             <h2 class="text-xl font-bold text-white mb-2">Gemini API Key</h2>
             <p class="text-[11px] text-gray-400 mb-4" id="lbl-apikey-desc">Key is stored locally.</p>
@@ -204,9 +196,8 @@
 
     <!-- ACTION SHEET -->
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300" id="action-modal">
-        <!-- BACKDROP CLICK CLOSES MODAL -->
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="closeModal()"></div>
-        <div class="bg-brand-gray border border-white/10 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full transition-transform duration-300 ease-out pointer-events-auto" id="action-sheet">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto" id="action-backdrop" onclick="closeModal()"></div>
+        <div class="bg-brand-gray border border-white/10 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full transition-transform duration-300 ease-out pointer-events-auto shadow-2xl" id="action-sheet">
             <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
             <h3 class="text-xl font-bold text-white mb-1" id="modal-task-title">Title</h3>
             <p class="text-[10px] text-gray-500 mb-6 italic truncate" id="modal-original-command">Original</p>
@@ -271,7 +262,6 @@
             language: 'en' 
         };
 
-        // --- CORE LOGIC ---
         function saveTasks() { localStorage.setItem('focusTasks', JSON.stringify(state.tasks)); }
         function loadTasks() {
             const s = localStorage.getItem('focusTasks');
@@ -282,47 +272,28 @@
             if (!state.apiKey) { toggleApiKeyModal(); return; }
             setAgentStatus('Thinking');
             haptic('medium');
-
             const targetLang = i18n[state.language].agent_prompt_lang; 
-            
-            const prompt = `You are 'Focus' AI. 
-            Context: Tab "${state.currentTab}". 
-            User Input: "${userText}". 
-            
-            Instructions:
-            1. Extract tasks into JSON array.
-            2. "title": Translate to ${targetLang} and summarize (Max 4 words).
-            3. "original": Keep original text.
-            4. "type": Force to "${state.currentTab}".
-            5. "priority": 1 (High) or 2 (Normal) or 3 (Quick).
-            
-            Output JSON: [{"title": "...", "original": "...", "type": "...", "priority": 1}]`;
-
+            const prompt = `You are 'Focus' AI. Context: Tab "${state.currentTab}". User Input: "${userText}". Output JSON: [{"title": "short translated to ${targetLang}", "original": "${userText}", "type": "${state.currentTab}", "priority": 1}]`;
             let success = false;
             for (const model of AVAILABLE_MODELS) {
                 try {
                     const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.apiKey}`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                     });
                     if (!resp.ok) continue;
                     const data = await resp.json();
                     let text = data.candidates[0].content.parts[0].text;
                     text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    
                     const newTasks = JSON.parse(text);
                     newTasks.forEach(t => { t.id = Date.now() + Math.random(); t.completed = false; state.tasks.push(t); });
-                    
-                    saveTasks(); renderTasks(); setAgentStatus('Ready');
-                    haptic('success');
+                    saveTasks(); renderTasks(); setAgentStatus('Ready'); haptic('success');
                     success = true; break;
                 } catch (e) { console.error(e); }
             }
             if (!success) { setAgentStatus('Ready'); haptic('error'); }
         }
 
-        // --- UI RENDER & I18N ---
         function applyLocalization() {
             const t = i18n[state.language];
             document.getElementById('btn-Task').innerText = t.task;
@@ -340,22 +311,19 @@
             document.getElementById('lbl-prio').innerText = t.prio;
             document.getElementById('lbl-lower').innerText = t.lower;
             document.getElementById('lbl-delete').innerText = t.delete;
-            
             const isEn = state.language === 'en';
             document.getElementById('lang-bg').style.transform = isEn ? 'translateX(0%)' : 'translateX(100%)';
             document.getElementById('lang-en').classList.toggle('text-brand-black', isEn);
             document.getElementById('lang-en').classList.toggle('text-gray-400', !isEn);
             document.getElementById('lang-ru').classList.toggle('text-brand-black', !isEn);
             document.getElementById('lang-ru').classList.toggle('text-gray-400', isEn);
-
             renderTasks();
         }
 
         function toggleLanguage() {
             state.language = state.language === 'en' ? 'ru' : 'en';
             localStorage.setItem('focusLang', state.language);
-            applyLocalization();
-            haptic('selection');
+            applyLocalization(); haptic('selection');
         }
 
         function renderTasks() {
@@ -363,13 +331,8 @@
             grid.innerHTML = '';
             const active = state.tasks.filter(t => t.type === state.currentTab && !t.completed).sort((a,b) => a.priority - b.priority);
             document.getElementById('empty-state').classList.toggle('hidden', active.length > 0);
-
             const t = i18n[state.language];
-
-            active.filter(t => t.priority !== 3).forEach(task => {
-                grid.appendChild(createCard(task, task.priority === 1 ? 'col-span-2 aspect-[2.1/1] text-xl' : 'col-span-1 aspect-square text-base', t));
-            });
-
+            active.filter(t => t.priority !== 3).forEach(task => grid.appendChild(createCard(task, task.priority === 1 ? 'col-span-2 aspect-[2.1/1] text-xl' : 'col-span-1 aspect-square text-base', t)));
             const p3 = active.filter(t => t.priority === 3);
             if(p3.length > 0) {
                 const box = document.createElement('div');
@@ -389,21 +352,12 @@
         function createCard(task, cls, t) {
             const d = document.createElement('div');
             const dateStr = new Date().toLocaleDateString(state.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
-            
             d.className = `task-card bg-white text-brand-black rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between ${cls}`;
             d.onclick = () => openActionModal(task.id);
-            d.innerHTML = `
-                <div class="flex justify-between items-start opacity-50">
-                    <span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${task.priority === 1 ? t.main : t.side}</span>
-                    <span class="text-[9px] font-bold uppercase">${dateStr}</span>
-                </div>
-                <div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${task.title}</h3></div>
-                <div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>
-            `;
+            d.innerHTML = `<div class="flex justify-between items-start opacity-50"><span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${task.priority === 1 ? t.main : t.side}</span><span class="text-[9px] font-bold uppercase">${dateStr}</span></div><div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${task.title}</h3></div><div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>`;
             return d;
         }
 
-        // --- HANDLERS & SWIPE ---
         function switchTab(n) {
             state.currentTab = n;
             document.querySelectorAll('nav button').forEach(b => b.classList.replace('text-brand-black','text-gray-400'));
@@ -413,52 +367,33 @@
             renderTasks(); haptic('selection');
         }
 
-        // SWIPE LOGIC
         let touchStart = { x: 0, y: 0 };
-        const appBody = document.getElementById('app-body');
-        
-        appBody.addEventListener('touchstart', e => {
-            touchStart.x = e.changedTouches[0].screenX;
-            touchStart.y = e.changedTouches[0].screenY;
-        }, {passive: true});
-
-        appBody.addEventListener('touchend', e => {
-            const endX = e.changedTouches[0].screenX;
-            const endY = e.changedTouches[0].screenY;
-            const diffX = endX - touchStart.x;
-            const diffY = endY - touchStart.y;
-            
-            // Threshold > 50px and must be horizontal (X > Y)
+        document.body.addEventListener('touchstart', e => { touchStart.x = e.changedTouches[0].screenX; touchStart.y = e.changedTouches[0].screenY; }, {passive: true});
+        document.body.addEventListener('touchend', e => {
+            const diffX = e.changedTouches[0].screenX - touchStart.x;
+            const diffY = e.changedTouches[0].screenY - touchStart.y;
             if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY)) {
-                if (diffX > 0) swipeRight();
-                else swipeLeft();
+                if (diffX > 0) { if(state.currentTab==='Routine') switchTab('Long'); else if(state.currentTab==='Long') switchTab('Task'); }
+                else { if(state.currentTab==='Task') switchTab('Long'); else if(state.currentTab==='Long') switchTab('Routine'); }
             }
         }, {passive: true});
-
-        function swipeLeft() {
-            if (state.currentTab === 'Task') switchTab('Long');
-            else if (state.currentTab === 'Long') switchTab('Routine');
-        }
-
-        function swipeRight() {
-            if (state.currentTab === 'Routine') switchTab('Long');
-            else if (state.currentTab === 'Long') switchTab('Task');
-        }
 
         function openActionModal(id) {
             state.selectedTaskId = id;
             const t = state.tasks.find(x => x.id === id);
             document.getElementById('modal-task-title').textContent = t.title;
             document.getElementById('modal-original-command').textContent = `"${t.original}"`;
-            document.getElementById('action-modal').classList.remove('opacity-0','pointer-events-none');
-            document.getElementById('action-sheet').classList.remove('translate-y-full');
+            const m = document.getElementById('action-modal');
+            m.classList.remove('hidden');
+            setTimeout(() => { m.classList.remove('opacity-0', 'pointer-events-none'); document.getElementById('action-sheet').classList.remove('translate-y-full'); }, 10);
             haptic('light');
         }
 
         function closeModal() {
             document.getElementById('action-sheet').classList.add('translate-y-full');
-            document.getElementById('action-modal').classList.add('opacity-0');
-            setTimeout(() => document.getElementById('action-modal').classList.add('pointer-events-none'), 300);
+            const m = document.getElementById('action-modal');
+            m.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => m.classList.add('hidden'), 300);
         }
 
         function taskAction(action) {
@@ -475,7 +410,16 @@
 
         function toggleSettingsModal() {
             const m = document.getElementById('settings-modal');
-            m.classList.toggle('hidden'); setTimeout(()=>m.classList.toggle('opacity-0'),10);
+            const isHidden = m.classList.contains('hidden');
+            if (isHidden) { m.classList.remove('hidden'); setTimeout(() => { m.classList.remove('opacity-0', 'pointer-events-none'); }, 10); }
+            else { m.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => m.classList.add('hidden'), 200); }
+        }
+
+        function toggleApiKeyModal() {
+            const m = document.getElementById('api-modal');
+            const isHidden = m.classList.contains('hidden');
+            if (isHidden) { m.classList.remove('hidden'); setTimeout(() => { m.classList.remove('opacity-0', 'pointer-events-none'); }, 10); }
+            else { m.classList.add('opacity-0', 'pointer-events-none'); setTimeout(() => m.classList.add('hidden'), 200); }
         }
 
         function setTheme(idx) {
@@ -483,26 +427,14 @@
             const color = themes[idx];
             document.getElementById('app-body').style.backgroundColor = color;
             tg.setHeaderColor(color); tg.setBackgroundColor(color);
-            localStorage.setItem('focusThemeIndex', idx);
-            haptic('selection');
+            localStorage.setItem('focusThemeIndex', idx); haptic('selection');
         }
 
         const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (Rec) {
-            const r = new Rec(); 
-            r.lang = 'ru-RU'; 
-            r.onstart = () => { 
-                state.isRecording = true; haptic('medium');
-                document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red');
-                document.getElementById('mic-icon').classList.add('hidden');
-                document.getElementById('waveform').classList.remove('hidden');
-            };
-            r.onend = () => { 
-                state.isRecording = false;
-                document.getElementById('voice-btn').classList.replace('bg-brand-red','bg-brand-green');
-                document.getElementById('mic-icon').classList.remove('hidden');
-                document.getElementById('waveform').classList.add('hidden');
-            };
+            const r = new Rec(); r.lang = 'ru-RU';
+            r.onstart = () => { state.isRecording = true; haptic('medium'); document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red'); document.getElementById('mic-icon').classList.add('hidden'); document.getElementById('waveform').classList.remove('hidden'); };
+            r.onend = () => { state.isRecording = false; document.getElementById('voice-btn').classList.replace('bg-brand-red','bg-brand-green'); document.getElementById('mic-icon').classList.remove('hidden'); document.getElementById('waveform').classList.add('hidden'); };
             r.onresult = (e) => runAgent(e.results[0][0].transcript);
             document.getElementById('voice-btn').onclick = () => state.isRecording ? r.stop() : r.start();
         }
@@ -511,40 +443,17 @@
             const dot = document.getElementById('status-dot');
             const text = document.getElementById('agent-status-text');
             const t = i18n[state.language];
-            if (status === 'Thinking') {
-                dot.className = "w-2 h-2 rounded-full bg-blue-500 animate-bounce";
-                text.innerText = t.agent_think;
-            } else {
-                dot.className = "w-2 h-2 rounded-full bg-brand-green animate-pulse";
-                text.innerText = t.agent_ready;
-            }
+            if (status === 'Thinking') { dot.className = "w-2 h-2 rounded-full bg-blue-500 animate-bounce"; text.innerText = t.agent_think; }
+            else { dot.className = "w-2 h-2 rounded-full bg-brand-green animate-pulse"; text.innerText = t.agent_ready; }
         }
 
-        function checkApiKey() {
-            const k = localStorage.getItem('focusApiKey');
-            if (k) { state.apiKey = k; setAgentStatus('Ready'); }
-        }
-
-        function saveApiKey() {
-            const v = document.getElementById('api-input').value.trim();
-            if(v) { localStorage.setItem('focusApiKey', v); state.apiKey = v; toggleApiKeyModal(); checkApiKey(); haptic('success'); }
-        }
-
-        function toggleApiKeyModal() {
-            const m = document.getElementById('api-modal');
-            m.classList.toggle('hidden'); setTimeout(()=>m.classList.toggle('opacity-0'),10);
-        }
+        function checkApiKey() { const k = localStorage.getItem('focusApiKey'); if (k) { state.apiKey = k; setAgentStatus('Ready'); } }
+        function saveApiKey() { const v = document.getElementById('api-input').value.trim(); if(v) { localStorage.setItem('focusApiKey', v); state.apiKey = v; toggleApiKeyModal(); checkApiKey(); haptic('success'); } }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('focusThemeIndex');
-            if(savedTheme) setTheme(parseInt(savedTheme));
-            const savedLang = localStorage.getItem('focusLang');
-            if(savedLang) state.language = savedLang;
-            
-            applyLocalization();
-            loadTasks(); 
-            checkApiKey(); 
-            switchTab('Task');
+            const savedTheme = localStorage.getItem('focusThemeIndex'); if(savedTheme) setTheme(parseInt(savedTheme));
+            const savedLang = localStorage.getItem('focusLang'); if(savedLang) state.language = savedLang;
+            applyLocalization(); loadTasks(); checkApiKey(); switchTab('Task');
         });
     </script>
 </body>
