@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+    <title>Focus App - Cyrillic Edition</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Подключаем Manrope - лучший аналог Urbanist с поддержкой кириллицы -->
+    <link href="https://fonts.googleapis.com" rel="preconnect">
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Manrope', 'sans-serif'] },
+                    colors: {
+                        'brand-black': '#0a0a0a',
+                        'brand-dark': '#121212',
+                        'brand-gray': '#1e1e1e',
+                        'brand-green': '#00dc82',
+                        'brand-red': '#ef4444',
+                    },
+                    animation: {
+                        'breathing': 'breathing 4s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        breathing: {
+                            '0%, 100%': { transform: 'scale(1)', opacity: '0.8' },
+                            '50%': { transform: 'scale(1.1)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #1e293b; 
+            color: #f5f5f5;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+            transition: background-color 0.5s ease;
+            user-select: none;
+            font-family: 'Manrope', sans-serif;
+        }
+        
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        
+        .glass-panel {
+            background: rgba(30, 30, 30, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .task-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+        }
+        .task-card:active { transform: scale(0.96); }
+    </style>
+</head>
+<body class="h-screen w-full overflow-hidden relative flex flex-col items-center" id="app-body" oncontextmenu="return false;">
+    
+    <div class="w-full max-w-md flex flex-col h-full relative">
+        
+        <!-- HEADER -->
+        <header class="w-full z-20 flex flex-col bg-gradient-to-b from-black/80 via-black/40 to-transparent pb-4 relative pt-4">
+            <div class="w-full h-[40px] shrink-0"></div> 
+
+            <div class="w-full flex justify-center items-center mb-4 relative z-30">
+                <h1 class="text-2xl font-extrabold tracking-tight text-white select-none hover:text-brand-green transition-colors cursor-pointer flex items-center gap-2" onclick="haptic('light')" id="focus-title-btn">
+                    Focus
+                    <span class="w-2 h-2 rounded-full bg-brand-green animate-pulse hidden" id="ping-indicator"></span>
+                </h1>
+            </div>
+
+            <div class="px-6 flex justify-between items-center w-full mb-4 z-30">
+                <button id="settings-btn" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full hover:bg-white/10 transition-colors active:scale-95 group">
+                    <span class="material-symbols-outlined text-[18px] text-gray-300 group-hover:text-white" id="settings-icon">format_paint</span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300 group-hover:text-white" id="settings-text">ТЕМА 1</span>
+                </button>
+
+                <button onclick="toggleApiKeyModal(); haptic('light');" class="flex items-center gap-2 glass-panel px-4 py-2 rounded-full select-none active:scale-95 transition-transform" id="status-container">
+                    <div class="w-2 h-2 rounded-full bg-gray-500" id="status-dot"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-300" id="agent-status-text">КЛЮЧ</span>
+                </button>
+            </div>
+
+            <nav class="flex p-1 bg-brand-gray/50 rounded-2xl relative mx-6 border border-white/5 shadow-inner">
+                <div class="absolute top-1 bottom-1 left-1 w-[32%] bg-brand-green rounded-xl transition-all duration-300 ease-out z-0" id="tab-indicator" style="transform: translateX(0%);"></div>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-brand-black" id="btn-Task" onclick="switchTab('Task')">ЗАДАЧИ</button>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Long" onclick="switchTab('Long')">ДОЛГИЕ</button>
+                <button class="flex-1 relative z-10 py-2.5 text-[11px] font-extrabold text-center transition-colors duration-300 text-gray-400" id="btn-Routine" onclick="switchTab('Routine')">РУТИНА</button>
+            </nav>
+        </header>
+
+        <!-- MAIN -->
+        <main class="flex-1 overflow-y-auto w-full px-4 pb-36 scroll-smooth" id="main-scroll">
+            <div class="grid grid-cols-2 gap-3 auto-rows-min pt-2" id="task-grid"></div>
+            
+            <div class="hidden flex flex-col items-center justify-center h-64 opacity-30" id="empty-state">
+                <span class="material-symbols-outlined text-5xl mb-2">mic</span>
+                <p class="text-sm font-semibold">Нажми, чтобы добавить</p>
+            </div>
+        </main>
+
+        <!-- VOICE BUTTON -->
+        <div class="absolute bottom-0 left-0 w-full h-36 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none flex justify-center items-end pb-10 z-30">
+            <div class="pointer-events-auto relative group">
+                <div class="absolute inset-0 rounded-full border border-brand-green/30 scale-100 opacity-0 transition-transform duration-1000" id="pulse-ring-1"></div>
+                <button class="w-16 h-16 rounded-full bg-brand-green relative flex items-center justify-center shadow-[0_0_25px_rgba(0,220,130,0.4)] transition-all duration-300 transform active:scale-90 overflow-hidden border-2 border-white/10" id="voice-btn">
+                    <span class="material-symbols-outlined text-brand-black text-3xl z-10" id="mic-icon">mic</span>
+                    <div class="absolute inset-0 flex items-center justify-center gap-1 hidden" id="waveform">
+                        <div class="w-1 bg-brand-black/80 animate-[breathing_0.5s_ease-in-out_infinite] h-4"></div>
+                        <div class="w-1 bg-brand-black/80 animate-[breathing_0.5s_ease-in-out_infinite_0.1s] h-7"></div>
+                        <div class="w-1 bg-brand-black/80 animate-[breathing_0.5s_ease-in-out_infinite_0.2s] h-3"></div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API MODAL -->
+    <div class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none opacity-0 hidden transition-opacity duration-200" id="api-modal">
+        <div class="absolute inset-0 bg-black/90 backdrop-blur-md" onclick="toggleApiKeyModal()"></div>
+        <div class="bg-brand-gray border border-brand-green/30 w-[90%] max-w-sm rounded-3xl p-6 relative pointer-events-auto transform scale-95 transition-transform duration-200">
+            <h2 class="text-xl font-bold text-white mb-2">Gemini API Key</h2>
+            <p class="text-[11px] text-gray-400 mb-4">Ключ хранится только на вашем устройстве.</p>
+            <input type="password" id="api-input" placeholder="Вставьте ключ..." class="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white mb-4 focus:border-brand-green outline-none text-sm font-mono">
+            <button onclick="saveApiKey()" class="w-full bg-brand-green text-brand-black font-bold py-3.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-brand-green/20">Подключить AI</button>
+            <button onclick="toggleApiKeyModal()" class="w-full mt-3 text-gray-500 text-xs py-2">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- ACTION SHEET -->
+    <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none opacity-0 transition-opacity duration-300" id="action-modal">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-md" onclick="closeModal()"></div>
+        <div class="bg-brand-gray border border-white/10 w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-6 transform translate-y-full transition-transform duration-300 ease-out pointer-events-auto" id="action-sheet">
+            <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
+            <h3 class="text-xl font-bold text-white mb-1" id="modal-task-title">Название</h3>
+            <p class="text-[10px] text-gray-500 mb-6 italic truncate" id="modal-original-command">Оригинал</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button class="col-span-2 bg-brand-green text-brand-black font-extrabold py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('done')">
+                    <span class="material-symbols-outlined">check_circle</span> Готово
+                </button>
+                <button class="bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('up')">
+                    <span class="material-symbols-outlined">arrow_upward</span> Приоритет
+                </button>
+                <button class="bg-white/5 border border-white/10 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform" onclick="taskAction('down')">
+                    <span class="material-symbols-outlined">arrow_downward</span> Снизить
+                </button>
+                <button class="col-span-2 text-red-400 font-bold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform text-xs" onclick="taskAction('delete')">
+                    <span class="material-symbols-outlined text-lg">delete</span> Удалить задачу
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready(); tg.expand(); tg.enableClosingConfirmation();
+
+        function haptic(type) {
+            if (!tg.HapticFeedback) return;
+            switch(type) {
+                case 'light': tg.HapticFeedback.impactOccurred('light'); break;
+                case 'medium': tg.HapticFeedback.impactOccurred('medium'); break;
+                case 'success': tg.HapticFeedback.notificationOccurred('success'); break;
+                case 'error': tg.HapticFeedback.notificationOccurred('error'); break;
+                case 'selection': tg.HapticFeedback.selectionChanged(); break;
+            }
+        }
+
+        const AVAILABLE_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'];
+        const themes = ['#1e293b', '#052e16', '#042f2e', '#1e1b4b'];
+        
+        const state = {
+            currentTab: 'Task', tasks: [], currentThemeIndex: 0, apiKey: null, isRecording: false
+        };
+
+        // --- CORE LOGIC ---
+        function saveTasks() { localStorage.setItem('focusTasks', JSON.stringify(state.tasks)); }
+        function loadTasks() {
+            const s = localStorage.getItem('focusTasks');
+            if (s) { try { state.tasks = JSON.parse(s); } catch (e) { state.tasks = []; } }
+        }
+
+        async function runAgent(userText) {
+            if (!state.apiKey) { toggleApiKeyModal(); return; }
+            setAgentStatus('Thinking');
+            haptic('medium');
+
+            const prompt = `You are 'Focus' AI. Context: tab "${state.currentTab}". 
+            Input: "${userText}". Output JSON array: [{"title": "short action", "original": "${userText}", "type": "${state.currentTab}", "priority": 1}]
+            Rules: Use Russian for title. Max 4 words.`;
+
+            let success = false;
+            for (const model of AVAILABLE_MODELS) {
+                try {
+                    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.apiKey}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    if (!resp.ok) continue;
+                    const data = await resp.json();
+                    let text = data.candidates[0].content.parts[0].text;
+                    // Очистка от Markdown
+                    text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    
+                    const newTasks = JSON.parse(text);
+                    newTasks.forEach(t => { t.id = Date.now() + Math.random(); t.completed = false; state.tasks.push(t); });
+                    
+                    saveTasks(); renderTasks(); setAgentStatus('Ready');
+                    haptic('success');
+                    success = true; break;
+                } catch (e) { console.error(e); }
+            }
+            if (!success) { setAgentStatus('Ready'); haptic('error'); }
+        }
+
+        // --- UI RENDER ---
+        function renderTasks() {
+            const grid = document.getElementById('task-grid');
+            grid.innerHTML = '';
+            const active = state.tasks.filter(t => t.type === state.currentTab && !t.completed).sort((a,b) => a.priority - b.priority);
+            document.getElementById('empty-state').classList.toggle('hidden', active.length > 0);
+
+            active.filter(t => t.priority !== 3).forEach(t => {
+                grid.appendChild(createCard(t, t.priority === 1 ? 'col-span-2 aspect-[2.1/1] text-xl' : 'col-span-1 aspect-square text-base'));
+            });
+
+            const p3 = active.filter(t => t.priority === 3);
+            if(p3.length > 0) {
+                const box = document.createElement('div');
+                box.className = 'col-span-2 bg-white/5 rounded-3xl p-4 border border-white/5 mt-2';
+                box.innerHTML = '<div class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-3 px-1">Быстрые задачи</div>';
+                p3.forEach(t => {
+                    const row = document.createElement('div');
+                    row.className = 'bg-white/5 p-3.5 rounded-xl flex justify-between items-center mb-2 last:mb-0 active:scale-95 transition-transform';
+                    row.onclick = () => openActionModal(t.id);
+                    row.innerHTML = `<span class="text-sm font-medium text-gray-200 truncate">${t.title}</span><div class="w-1 h-1 rounded-full bg-brand-green/40"></div>`;
+                    box.appendChild(row);
+                });
+                grid.appendChild(box);
+            }
+        }
+
+        function createCard(t, cls) {
+            const d = document.createElement('div');
+            d.className = `task-card bg-white text-brand-black rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between ${cls}`;
+            d.onclick = () => openActionModal(t.id);
+            d.innerHTML = `
+                <div class="flex justify-between items-start opacity-50">
+                    <span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${t.priority === 1 ? 'ГЛАВНОЕ' : 'ВТОРОЕ'}</span>
+                </div>
+                <div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${t.title}</h3></div>
+                <div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>
+            `;
+            return d;
+        }
+
+        // --- HANDLERS ---
+        function switchTab(n) {
+            state.currentTab = n;
+            document.querySelectorAll('nav button').forEach(b => b.classList.replace('text-brand-black','text-gray-400'));
+            document.getElementById(`btn-${n}`).classList.replace('text-gray-400','text-brand-black');
+            const offsets = { 'Task': '0%', 'Long': '100%', 'Routine': '200%' };
+            document.getElementById('tab-indicator').style.transform = `translateX(${offsets[n]})`;
+            renderTasks(); haptic('selection');
+        }
+
+        function openActionModal(id) {
+            state.selectedTaskId = id;
+            const t = state.tasks.find(x => x.id === id);
+            document.getElementById('modal-task-title').textContent = t.title;
+            document.getElementById('modal-original-command').textContent = `"${t.original}"`;
+            document.getElementById('action-modal').classList.remove('opacity-0','pointer-events-none');
+            document.getElementById('action-sheet').classList.remove('translate-y-full');
+            haptic('light');
+        }
+
+        function closeModal() {
+            document.getElementById('action-sheet').classList.add('translate-y-full');
+            document.getElementById('action-modal').classList.add('opacity-0');
+            setTimeout(() => document.getElementById('action-modal').classList.add('pointer-events-none'), 300);
+        }
+
+        function taskAction(action) {
+            const idx = state.tasks.findIndex(t => t.id === state.selectedTaskId);
+            if(idx > -1) {
+                if(action === 'delete') state.tasks.splice(idx,1);
+                else if(action === 'done') state.tasks[idx].completed = true;
+                else if(action === 'up' && state.tasks[idx].priority > 1) state.tasks[idx].priority--;
+                else if(action === 'down' && state.tasks[idx].priority < 3) state.tasks[idx].priority++;
+                haptic('success');
+            }
+            saveTasks(); renderTasks(); closeModal();
+        }
+
+        // --- VOICE ---
+        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (Rec) {
+            const r = new Rec(); r.lang = 'ru-RU';
+            r.onstart = () => { 
+                state.isRecording = true; haptic('medium');
+                document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red');
+                document.getElementById('mic-icon').classList.add('hidden');
+                document.getElementById('waveform').classList.remove('hidden');
+            };
+            r.onend = () => { 
+                state.isRecording = false;
+                document.getElementById('voice-btn').classList.replace('bg-brand-red','bg-brand-green');
+                document.getElementById('mic-icon').classList.remove('hidden');
+                document.getElementById('waveform').classList.add('hidden');
+            };
+            r.onresult = (e) => runAgent(e.results[0][0].transcript);
+            document.getElementById('voice-btn').onclick = () => state.isRecording ? r.stop() : r.start();
+        }
+
+        function setAgentStatus(status) {
+            const dot = document.getElementById('status-dot');
+            const text = document.getElementById('agent-status-text');
+            if (status === 'Thinking') {
+                dot.className = "w-2 h-2 rounded-full bg-blue-500 animate-bounce";
+                text.innerText = "ДУМАЕТ";
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-brand-green animate-pulse";
+                text.innerText = "ГОТОВ";
+            }
+        }
+
+        function checkApiKey() {
+            const k = localStorage.getItem('focusApiKey');
+            if (k) { state.apiKey = k; setAgentStatus('Ready'); }
+        }
+
+        function saveApiKey() {
+            const v = document.getElementById('api-input').value.trim();
+            if(v) { localStorage.setItem('focusApiKey', v); state.apiKey = v; toggleApiKeyModal(); checkApiKey(); haptic('success'); }
+        }
+
+        function toggleApiKeyModal() {
+            const m = document.getElementById('api-modal');
+            m.classList.toggle('hidden'); setTimeout(()=>m.classList.toggle('opacity-0'),10);
+        }
+
+        document.getElementById('settings-btn').onclick = () => {
+            state.currentThemeIndex = (state.currentThemeIndex + 1) % themes.length;
+            const color = themes[state.currentThemeIndex];
+            document.getElementById('app-body').style.backgroundColor = color;
+            document.getElementById('settings-text').textContent = `ТЕМА ${state.currentThemeIndex + 1}`;
+            tg.setHeaderColor(color); tg.setBackgroundColor(color);
+            localStorage.setItem('focusThemeIndex', state.currentThemeIndex);
+            haptic('selection');
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTasks(); checkApiKey(); renderTasks(); switchTab('Task');
+            const savedTheme = localStorage.getItem('focusThemeIndex');
+            if(savedTheme) { state.currentThemeIndex = parseInt(savedTheme); }
+        });
+    </script>
+</body>
+</html>
