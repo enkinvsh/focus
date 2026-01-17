@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 )
 
 type GeminiRequest struct {
-	Contents []GeminiContent `json:"contents"`
+	Contents         []GeminiContent         `json:"contents"`
+	GenerationConfig *GeminiGenerationConfig `json:"generationConfig,omitempty"`
+	SafetySettings   []GeminiSafetySetting   `json:"safetySettings,omitempty"`
 }
 
 type GeminiContent struct {
@@ -28,42 +31,59 @@ type GeminiInline struct {
 	Data     string `json:"data"`
 }
 
+type GeminiGenerationConfig struct {
+	Temperature      float64 `json:"temperature,omitempty"`
+	ResponseMIMEType string  `json:"responseMimeType,omitempty"`
+}
+
+type GeminiSafetySetting struct {
+	Category  string `json:"category"`
+	Threshold string `json:"threshold"`
+}
+
 type GeminiResponse struct {
-	Candidates []struct {
-		Content struct {
-			Parts []struct {
-				Text string `json:"text"`
-			} `json:"parts"`
-		} `json:"content"`
-	} `json:"candidates"`
+	Candidates     []GeminiCandidate     `json:"candidates"`
+	PromptFeedback *GeminiPromptFeedback `json:"promptFeedback,omitempty"`
+}
+
+type GeminiCandidate struct {
+	Content       GeminiContent `json:"content"`
+	FinishReason  string        `json:"finishReason,omitempty"`
+	SafetyRatings []struct {
+		Category    string `json:"category"`
+		Probability string `json:"probability"`
+	} `json:"safetyRatings,omitempty"`
+}
+
+type GeminiPromptFeedback struct {
+	BlockReason   string `json:"blockReason,omitempty"`
+	SafetyRatings []struct {
+		Category    string `json:"category"`
+		Probability string `json:"probability"`
+	} `json:"safetyRatings,omitempty"`
+}
+
+type Task struct {
+	Title    string `json:"title"`
+	Type     string `json:"type"`
+	Priority int    `json:"priority"`
 }
 
 func TranscribeAndParseTasks(audioData []byte, mimeType, taskType, language string) ([]map[string]interface{}, error) {
 	apiKey := os.Getenv("GEMINI_KEY")
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s", apiKey)
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", apiKey)
 
-	prompt := fmt.Sprintf(`You are 'Focus' - a calming, stress-reducing AI task assistant.
+	prompt := fmt.Sprintf(`Listen to this audio and extract tasks from what the user said.
 
-Listen to this audio and extract tasks from what the user said.
+Task type: "%s"
+Language for output: %s
 
-CONTEXT:
-- Task type: "%s"
-- Language for output: %s
+Create tasks with these rules:
+- Title: 2-4 words, action verb, no articles
+- Type: "%s"
+- Priority: 1 (urgent), 2 (important), or 3 (quick)
 
-TITLE RULES:
-- Maximum 3-4 words per title
-- Use action verbs
-- No articles, no fluff
-
-PRIORITY RULES:
-- 1 (MAIN): Critical today, high impact
-- 2 (SIDE): Important but not urgent
-- 3 (QUICK): Takes <5 min, easy wins
-
-OUTPUT FORMAT (JSON array only, no markdown):
-[{"title": "2-4 words", "type": "%s", "priority": 1-3}]
-
-Extract tasks now:`, taskType, language, taskType)
+Return a JSON array of tasks only.`, taskType, language, taskType)
 
 	reqBody := GeminiRequest{
 		Contents: []GeminiContent{{
@@ -75,47 +95,90 @@ Extract tasks now:`, taskType, language, taskType)
 				{Text: prompt},
 			},
 		}},
+		GenerationConfig: &GeminiGenerationConfig{
+			Temperature:      0.1,
+			ResponseMIMEType: "application/json",
+		},
+		SafetySettings: []GeminiSafetySetting{
+			{Category: "HARM_CATEGORY_HARASSMENT", Threshold: "BLOCK_NONE"},
+			{Category: "HARM_CATEGORY_HATE_SPEECH", Threshold: "BLOCK_NONE"},
+			{Category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", Threshold: "BLOCK_NONE"},
+			{Category: "HARM_CATEGORY_DANGEROUS_CONTENT", Threshold: "BLOCK_NONE"},
+		},
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	log.Printf("Gemini request size: %d bytes, mimeType: %s", len(audioData), mimeType)
 
 	resp, err := http.Post(url, "application/json", bytes.NewReader(jsonBody))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to call Gemini API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Log response for debugging
+	log.Printf("Gemini response (status %d): %s", resp.StatusCode, string(body))
+
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("Gemini API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var geminiResp GeminiResponse
 	if err := json.Unmarshal(body, &geminiResp); err != nil {
-		return nil, fmt.Errorf("failed to parse Gemini response: %w", err)
+		return nil, fmt.Errorf("failed to parse Gemini response JSON: %w, body: %s", err, string(body))
 	}
 
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("empty response from Gemini")
+	if geminiResp.PromptFeedback != nil && geminiResp.PromptFeedback.BlockReason != "" {
+		return nil, fmt.Errorf("prompt blocked: %s", geminiResp.PromptFeedback.BlockReason)
 	}
 
-	text := geminiResp.Candidates[0].Content.Parts[0].Text
-	text = cleanJSON(text)
+	if len(geminiResp.Candidates) == 0 {
+		return nil, fmt.Errorf("no candidates returned from Gemini: %s", string(body))
+	}
 
-	var tasks []map[string]interface{}
+	candidate := geminiResp.Candidates[0]
+
+	if candidate.FinishReason == "SAFETY" {
+		return nil, fmt.Errorf("response blocked by safety filters")
+	}
+
+	if len(candidate.Content.Parts) == 0 {
+		return nil, fmt.Errorf("no content parts in response: %s", string(body))
+	}
+
+	text := candidate.Content.Parts[0].Text
+	if text == "" {
+		return nil, fmt.Errorf("empty text in response: %s", string(body))
+	}
+
+	log.Printf("Gemini extracted text: %s", text)
+
+	var tasks []Task
 	if err := json.Unmarshal([]byte(text), &tasks); err != nil {
-		return nil, fmt.Errorf("failed to parse tasks JSON: %w", err)
+		cleaned := cleanJSON(text)
+		if err := json.Unmarshal([]byte(cleaned), &tasks); err != nil {
+			return nil, fmt.Errorf("failed to parse tasks JSON: %w, text: %s", err, text)
+		}
 	}
 
-	return tasks, nil
+	var result []map[string]interface{}
+	for _, task := range tasks {
+		result = append(result, map[string]interface{}{
+			"title":    task.Title,
+			"type":     task.Type,
+			"priority": task.Priority,
+		})
+	}
+
+	return result, nil
 }
 
 func cleanJSON(s string) string {
