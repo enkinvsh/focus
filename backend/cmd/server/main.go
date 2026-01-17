@@ -22,7 +22,18 @@ func main() {
 	r := gin.Default()
 
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		allowedOrigins := []string{
+			"https://enkinvsh.github.io",
+			"https://web.telegram.org",
+			"https://t.me",
+		}
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				c.Header("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if c.Request.Method == "OPTIONS" {

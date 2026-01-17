@@ -817,7 +817,13 @@ Generate tasks now:`;
                     const row = document.createElement('div');
                     row.className = 'bg-white/5 p-3.5 rounded-xl flex justify-between items-center mb-2 last:mb-0 active:scale-95 transition-transform';
                     row.onclick = () => openActionModal(task.id);
-                    row.innerHTML = `<span class="text-sm font-medium text-gray-200 truncate">${task.title}</span><div class="w-1 h-1 rounded-full bg-brand-green/40"></div>`;
+                    const span = document.createElement('span');
+                    span.className = 'text-sm font-medium text-gray-200 truncate';
+                    span.textContent = task.title;
+                    const dot = document.createElement('div');
+                    dot.className = 'w-1 h-1 rounded-full bg-brand-green/40';
+                    row.appendChild(span);
+                    row.appendChild(dot);
                     box.appendChild(row);
                 });
                 grid.appendChild(box);
@@ -830,7 +836,31 @@ Generate tasks now:`;
             const dateStr = taskDate.toLocaleDateString(state.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
             d.className = `task-card bg-white text-brand-black rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between ${cls}`;
             d.onclick = () => openActionModal(task.id);
-            d.innerHTML = `<div class="flex justify-between items-start opacity-50"><span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${task.priority === 1 ? t.main : t.side}</span><span class="text-[9px] font-bold uppercase">${dateStr}</span></div><div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${task.title}</h3></div><div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>`;
+            
+            const header = document.createElement('div');
+            header.className = 'flex justify-between items-start opacity-50';
+            const badge = document.createElement('span');
+            badge.className = 'text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded';
+            badge.textContent = task.priority === 1 ? t.main : t.side;
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'text-[9px] font-bold uppercase';
+            dateSpan.textContent = dateStr;
+            header.appendChild(badge);
+            header.appendChild(dateSpan);
+            
+            const content = document.createElement('div');
+            content.className = 'z-10';
+            const title = document.createElement('h3');
+            title.className = 'font-extrabold leading-tight line-clamp-3';
+            title.textContent = task.title;
+            content.appendChild(title);
+            
+            const glow = document.createElement('div');
+            glow.className = 'absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8';
+            
+            d.appendChild(header);
+            d.appendChild(content);
+            d.appendChild(glow);
             return d;
         }
 
