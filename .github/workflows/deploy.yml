@@ -94,37 +94,52 @@ jobs:
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
+          envs: GHCR_TOKEN
           script: |
             set -e
             cd /opt/focus
-            
+
+            echo "Saving current image for potential rollback..."
+            PREVIOUS_IMAGE=$(docker inspect focus-api --format='{{.Config.Image}}' 2>/dev/null || echo "none")
+            echo "Previous image: $PREVIOUS_IMAGE"
+            echo "Previous image: $PREVIOUS_IMAGE" > /opt/focus/.deploy-info
+
             echo "Logging into GitHub Container Registry..."
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u enkinvsh --password-stdin
+
             echo "Stopping old containers..."
             docker stop focus-api focus-db focus-caddy 2>/dev/null || true
             docker rm focus-api focus-db focus-caddy 2>/dev/null || true
-            
+
             echo "Pulling latest image..."
             docker pull ghcr.io/${{ github.repository }}-backend:latest
-            
+
             echo "Starting containers..."
             docker compose up -d --remove-orphans --force-recreate
-            
-            echo "Waiting for services to start..."
-            sleep 15
-            
+
+            echo "Waiting for API to be healthy..."
+            for i in {1..12}; do
+              if curl -sf http://localhost:8080/health; then
+                echo "✓ API is healthy!"
+                break
+              fi
+              echo "Waiting... attempt $i/12"
+              sleep 5
+            done
+
             echo "Checking container status..."
             docker compose ps
-            
+
             echo "Cleaning up..."
             docker image prune -f
-            
+
             echo "Deployment successful!"
 
       - name: Health check
@@ -137,6 +152,34 @@ jobs:
           script: |
             echo "Checking API health..."
             curl -sf http://localhost:8080/health && echo "API is healthy!" || echo "API health check failed (may need more time)"
-            
+
             echo "Container logs (last 20 lines):"
             docker logs focus-api --tail=20 2>&1 || true
+
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            echo "Checking for rollback..."
+            CURRENT_IMAGE=$(docker inspect focus-api --format='{{.Config.Image}}' 2>/dev/null || echo "")
+            PREVIOUS_IMAGE=$(grep "^Previous image:" /opt/focus/.deploy-info 2>/dev/null | cut -d' ' -f3- || echo "")
+
+            if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" != "none" ]; then
+              echo "Rolling back to $PREVIOUS_IMAGE"
+              cd /opt/focus
+              docker stop focus-api
+              docker rm focus-api
+              docker run -d --name focus-api --network focus-network \
+                --env-file /root/focus/.env \
+                --restart unless-stopped \
+                -p 8080:8080 \
+                $PREVIOUS_IMAGE
+              echo "Rollback completed. Previous image is now running."
+            else
+              echo "No previous image found or rollback not needed."
+            fi
