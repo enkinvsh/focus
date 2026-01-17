@@ -2,12 +2,14 @@ package api
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/enkinvsh/focus-backend/internal/db"
 	"github.com/enkinvsh/focus-backend/internal/models"
+	"github.com/enkinvsh/focus-backend/internal/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -184,4 +186,73 @@ func UpdatePreferences(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func CreateTaskFromAudio(c *gin.Context) {
+	user := GetUser(c)
+
+	file, header, err := c.Request.FormFile("audio")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "audio file required"})
+		return
+	}
+	defer file.Close()
+
+	audioData, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read audio"})
+		return
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "audio/webm"
+	}
+
+	taskType := c.DefaultPostForm("type", "Task")
+	language := c.DefaultPostForm("language", "en")
+
+	parsedTasks, err := services.TranscribeAndParseTasks(audioData, mimeType, taskType, language)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var tasks []models.Task
+	for _, pt := range parsedTasks {
+		title, _ := pt["title"].(string)
+		priority := 2
+		if p, ok := pt["priority"].(float64); ok {
+			priority = int(p)
+		}
+		tType := taskType
+		if t, ok := pt["type"].(string); ok {
+			tType = t
+		}
+
+		var task models.Task
+		err := db.Pool.QueryRow(context.Background(), `
+			INSERT INTO tasks (user_id, title, original_input, task_type, priority)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING id, created_at
+		`, user.ID, title, "[voice]", tType, priority).Scan(&task.ID, &task.CreatedAt)
+
+		if err != nil {
+			continue
+		}
+
+		task.UserID = user.ID
+		task.Title = title
+		task.OriginalInput = "[voice]"
+		task.TaskType = tType
+		task.Priority = priority
+		task.Completed = false
+		tasks = append(tasks, task)
+	}
+
+	if tasks == nil {
+		tasks = []models.Task{}
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"tasks": tasks})
 }

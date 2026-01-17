@@ -851,14 +851,118 @@ Generate tasks now:`;
             localStorage.setItem('focusThemeIndex', idx); haptic('selection');
         }
 
-        const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (Rec) {
-            const r = new Rec(); r.lang = 'ru-RU';
-            r.onstart = () => { state.isRecording = true; haptic('medium'); document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red'); document.getElementById('mic-icon').classList.add('hidden'); document.getElementById('waveform').classList.remove('hidden'); };
-            r.onend = () => { state.isRecording = false; document.getElementById('voice-btn').classList.replace('bg-brand-red','bg-brand-green'); document.getElementById('mic-icon').classList.remove('hidden'); document.getElementById('waveform').classList.add('hidden'); };
-            r.onresult = (e) => runAgent(e.results[0][0].transcript);
-            document.getElementById('voice-btn').onclick = () => state.isRecording ? r.stop() : r.start();
+        // AUDIO RECORDING (MediaRecorder for iOS compatibility)
+        let mediaRecorder = null;
+        let audioChunks = [];
+        
+        async function initAudioRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Prefer webm for smaller size, fallback to mp4 for iOS
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+                    audioChunks = [];
+                    await sendAudioToBackend(audioBlob);
+                };
+                
+                return true;
+            } catch (e) {
+                console.error('Microphone access denied:', e);
+                return false;
+            }
         }
+        
+        function startRecording() {
+            if (!mediaRecorder || mediaRecorder.state === 'recording') return;
+            audioChunks = [];
+            mediaRecorder.start();
+            state.isRecording = true;
+            haptic('medium');
+            document.getElementById('voice-btn').classList.replace('bg-brand-green','bg-brand-red');
+            document.getElementById('mic-icon').classList.add('hidden');
+            document.getElementById('waveform').classList.remove('hidden');
+        }
+        
+        function stopRecording() {
+            if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+            mediaRecorder.stop();
+            state.isRecording = false;
+            document.getElementById('voice-btn').classList.replace('bg-brand-red','bg-brand-green');
+            document.getElementById('mic-icon').classList.remove('hidden');
+            document.getElementById('waveform').classList.add('hidden');
+        }
+        
+        async function sendAudioToBackend(audioBlob) {
+            setAgentStatus('Thinking');
+            haptic('medium');
+            
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'voice.webm');
+            formData.append('type', state.currentTab);
+            formData.append('language', i18n[state.language].agent_prompt_lang);
+            
+            try {
+                // Use Go backend API
+                const API_URL = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:8080' 
+                    : 'https://api.focus.enkinvsh.com'; // TODO: Update with real API URL
+                
+                const resp = await fetch(`${API_URL}/api/v1/tasks/audio`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `tma ${tg.initData}`
+                    },
+                    body: formData
+                });
+                
+                if (!resp.ok) throw new Error('API error');
+                
+                const data = await resp.json();
+                const newTasks = data.tasks || [];
+                
+                newTasks.forEach(t => {
+                    // Backend returns full task objects, add to local state
+                    state.tasks.push({
+                        id: t.id || Date.now() + Math.random(),
+                        title: t.title,
+                        original: t.original_input || '[voice]',
+                        type: t.task_type || state.currentTab,
+                        priority: t.priority || 2,
+                        completed: false
+                    });
+                });
+                
+                saveTasks();
+                renderTasks();
+                setAgentStatus('Ready');
+                haptic('success');
+            } catch (e) {
+                console.error('Audio API error:', e);
+                // Fallback to text-based agent if audio fails
+                setAgentStatus('Ready');
+                haptic('error');
+            }
+        }
+        
+        // Initialize voice button
+        document.getElementById('voice-btn').onclick = async () => {
+            if (!mediaRecorder) {
+                const ok = await initAudioRecording();
+                if (!ok) {
+                    haptic('error');
+                    return;
+                }
+            }
+            state.isRecording ? stopRecording() : startRecording();
+        };
 
         function setAgentStatus(status) {
             const dot = document.getElementById('status-dot');
