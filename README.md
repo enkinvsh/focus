@@ -1,8 +1,8 @@
 # Focus
 
-**Focus** is a minimalist, AI-powered task manager designed exclusively for **Telegram Mini Apps**. It uses Google Gemini models to intelligently parse voice or text commands into structured tasks, organizing them by context (Daily Tasks, Long-term goals, Routines).
+**Focus** is an AI-powered task manager designed for **Telegram Mini Apps**. It uses Google Gemini to parse voice commands into structured tasks, with a Go backend for cloud persistence and real-time sync.
 
-![License](https://img.shields.io/badge/license-MIT-green) ![Version](https://img.shields.io/badge/version-0.0.3-blue) ![Platform](https://img.shields.io/badge/platform-Telegram-2CA5E0)
+![License](https://img.shields.io/badge/license-MIT-green) ![Version](https://img.shields.io/badge/version-0.1.0-blue) ![Platform](https://img.shields.io/badge/platform-Telegram-2CA5E0)
 
 **Live Demo:** [https://enkinvsh.github.io/focus/](https://enkinvsh.github.io/focus/)
 
@@ -10,34 +10,51 @@
 
 ## Key Features
 
-- **AI-Powered Entry:** Say "Buy milk" or "Learn Python". The AI extracts the title, assigns priority, and categorizes it based on your current tab context.
-- **Breathing Exercise:** 1-minute guided breathing technique (4-4-4 pattern) to improve concentration before work. Tap the "Focus" title to start.
-- **Cloud Sync:** Uses **Telegram CloudStorage** to sync tasks across all your devices without requiring login or external database.
-- **Secure Architecture:** API Keys are hidden behind a **Cloudflare Worker** proxy. No sensitive data is exposed to the client.
-- **Voice Control:** Native Web Speech API integration for hands-free task addition.
+- **AI Voice Input:** Record voice commands with visual progress ring and silence detection. Auto-stops after 2s silence or 8s max.
+- **Smart Parsing:** Gemini 2.0 Flash extracts task title, priority, and category from natural language.
+- **Cloud Sync:** PostgreSQL backend with Telegram user authentication. Tasks sync across devices.
+- **Breathing Exercise:** 1-minute guided breathing (4-4-4 pattern). Tap "Focus" title to start.
 - **Premium UI/UX:**
-  - Glassmorphism design with Tailwind CSS
+  - Glassmorphism design
   - Swipe gestures for tab navigation
-  - Haptic feedback for native app feel
+  - Haptic feedback
   - 4 OLED-friendly dark themes
-  - Animated start screen with entrance effects
-- **Localization:** Fully translated into English and Russian with auto-detection.
+  - Animated start screen
+- **Localization:** English and Russian with auto-detection.
 
 ---
 
 ## Architecture
 
-```mermaid
-graph LR
-    User[User / Telegram] -- /start --> Bot[Telegram Bot]
-    Bot -- Web App Button --> Client[Focus App]
-    Client -- Voice/Text --> Client
-    Client -- Sync Tasks --> TG[Telegram CloudStorage]
-    Client -- AI Prompt --> Proxy[Cloudflare Worker]
-    Proxy -- Secure Request --> Gemini[Google Gemini API]
-    Gemini -- JSON Response --> Proxy
-    Proxy --> Client
 ```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Telegram App   │────▶│  GitHub Pages    │────▶│ Cloudflare      │
+│  (User)         │     │  (index.html)    │     │ Worker          │
+└─────────────────┘     └──────────────────┘     │ (Gemini Proxy)  │
+                               │                 └────────┬────────┘
+                               │                          │
+                               ▼                          ▼
+                        ┌──────────────────┐     ┌─────────────────┐
+                        │  Go Backend      │     │ Google Gemini   │
+                        │  (api.meybz.asia)│     │ API             │
+                        │  + PostgreSQL    │     └─────────────────┘
+                        │  + Caddy         │
+                        └──────────────────┘
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Single `index.html`, Vanilla JS, Tailwind CSS |
+| Backend | Go 1.23, Gin, PostgreSQL 16 |
+| AI Proxy | Cloudflare Worker |
+| AI Model | Gemini 2.0 Flash |
+| Reverse Proxy | Caddy (auto HTTPS) |
+| Deployment | GitHub Actions → Docker → VPS |
+| Domain | Cloudflare DNS (api.meybz.asia) |
 
 ---
 
@@ -45,63 +62,61 @@ graph LR
 
 ### 1. Frontend (GitHub Pages)
 
-The app is a single `index.html` file.
+1. Fork this repository
+2. Enable **GitHub Pages** (Source: `main` branch)
+3. Update `API_URL` in `index.html` to your backend URL
 
-1. Fork this repository.
-2. Enable **GitHub Pages** in repository settings (Source: `main` branch).
-3. The app is ready to be added to Telegram via BotFather.
+### 2. Backend (VPS)
 
-### 2. Backend (Cloudflare Worker)
+```bash
+# Clone and configure
+git clone https://github.com/enkinvsh/focus.git
+cd focus/backend
 
-The `worker.js` file contains both the Telegram bot logic and the Gemini API proxy.
+# Create .env file
+cat > .env << EOF
+DATABASE_URL=postgres://focus:password@focus-db:5432/focus?sslmode=disable
+GEMINI_PROXY_URL=https://your-worker.workers.dev
+EOF
 
-1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com/).
-2. Go to **Workers & Pages** -> **Create Worker**.
-3. Paste the contents of `worker.js`.
-4. **Settings -> Variables**: Add:
-   - `GEMINI_KEY` - Your Google AI Studio API key
-   - `BOT_TOKEN` - Your Telegram bot token from @BotFather
-5. Deploy and copy the Worker URL.
-6. Set up webhook for your bot: `https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WORKER_URL>`
-7. Update the `PROXY_URL` constant in `index.html` with your Worker URL.
-
-### 3. BotFather Commands
-
-Set these commands in @BotFather -> Edit Bot -> Edit Commands:
-
+# Start with Docker Compose
+docker compose up -d
 ```
-start - Launch app
-help - Guide
-about - About
-```
+
+### 3. Cloudflare Worker (Gemini Proxy)
+
+1. Create Worker at [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Paste contents of `worker.js`
+3. Add environment variable: `GEMINI_KEY`
+4. Deploy and copy Worker URL
+
+### 4. GitHub Actions (CI/CD)
+
+Required secrets in repository settings:
+
+| Secret | Description |
+|--------|-------------|
+| `VPS_HOST` | Server IP address |
+| `VPS_USER` | SSH username |
+| `VPS_SSH_KEY` | Private SSH key |
+| `VPS_PORT` | SSH port |
+| `CF_ORIGIN_CERT` | Cloudflare origin certificate |
+| `CF_ORIGIN_KEY` | Cloudflare origin key |
 
 ---
 
-## Bot Commands
+## API Endpoints
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Shows welcome message with app launch button and breathing exercise info |
-| `/help` | Displays usage guide with gestures and features |
-| `/about` | Shows version, technologies, and privacy information |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Health check |
+| `GET` | `/tasks?limit=50&offset=0` | Get tasks (paginated, max 200) |
+| `POST` | `/tasks` | Create task |
+| `PUT` | `/tasks/:id` | Update task |
+| `DELETE` | `/tasks/:id` | Delete task |
+| `POST` | `/transcribe` | Transcribe audio via Gemini |
 
-The bot automatically detects user language (English/Russian) from Telegram settings.
-
----
-
-## Usage
-
-1. **Start:** Open the bot and tap "Launch Focus" or "Breathing Exercise"
-2. **Add Tasks:** Tap the microphone button and speak, or type your task
-3. **Categories:**
-   - **TASK:** Immediate actions
-   - **LONG:** Long-term goals
-   - **ROUTINE:** Recurring habits
-4. **Gestures:**
-   - Swipe Left/Right to switch tabs
-   - Tap a task for action menu (Done, Priority, Delete)
-   - Tap "Focus" title for breathing exercise
-5. **Breathing:** Tap the circle to pause/resume, or exit early
+All endpoints require `X-Telegram-Init-Data` header for authentication.
 
 ---
 
@@ -109,45 +124,65 @@ The bot automatically detects user language (English/Russian) from Telegram sett
 
 ```
 focus/
-├── index.html      # Main application (SPA)
-├── worker.js       # Cloudflare Worker (Bot + Gemini Proxy)
-├── enter.png       # Bot welcome image
-├── promo_banner.png
-├── bot_avatar.png
-└── README.md
+├── index.html                 # Frontend SPA
+├── worker.js                  # Cloudflare Worker (Gemini proxy)
+├── backend/
+│   ├── cmd/server/main.go     # Entry point
+│   ├── internal/
+│   │   ├── api/handlers.go    # HTTP handlers
+│   │   ├── db/postgres.go     # Database layer
+│   │   └── services/ai.go     # Gemini integration
+│   ├── docker-compose.yml
+│   ├── Dockerfile
+│   └── Caddyfile
+├── .github/workflows/
+│   └── deploy.yml             # CI/CD pipeline
+└── AUDIT_REPORT.md            # Security audit
 ```
 
 ---
 
 ## Changelog
 
+### v0.1.0 (Production Ready)
+- **Backend:** Go API with PostgreSQL, graceful shutdown, pagination
+- **Voice UX:** Progress ring with 8s countdown, silence detection (auto-stop after 2s)
+- **AI:** Switched to Gemini 2.0 Flash, direct Worker calls from frontend
+- **Security:** CORS whitelist, XSS prevention, input validation, error sanitization
+- **DevOps:** GitHub Actions with health polling, rollback on failure, masked secrets
+- **Tasks:** Added `createdAt` field, transcript display in modal
+
 ### v0.0.3 (Focus Edition)
-- **New:** Breathing exercise feature (1-min, 4-4-4 pattern)
-- **New:** Premium animated start screen
-- **New:** Tap-to-pause breathing with Continue/Exit menu
-- **New:** Bot commands /help and /about
-- **New:** Auto language detection in bot
-- **UX:** Removed sync overlay, background loading
-- **Bot:** Enhanced welcome message with feature list
+- Breathing exercise feature (1-min, 4-4-4 pattern)
+- Premium animated start screen
+- Bot commands /help and /about
 
 ### v0.0.2 (Cloud Edition)
-- **New:** Telegram CloudStorage integration for cross-device sync
-- **Security:** Cloudflare Worker proxy integration
-- **UX:** Added "Syncing" overlay state
-- **Fix:** Modal backdrop click issues resolved
+- Telegram CloudStorage integration
+- Cloudflare Worker proxy
 
 ### v0.0.1 (Initial Release)
-- Core AI Task extraction
+- Core AI task extraction
 - Localization (EN/RU)
-- Manrope Font & Tailwind styling
+
+---
+
+## Security
+
+- **Authentication:** Telegram `initData` validation with HMAC-SHA256
+- **CORS:** Whitelist only (`enkinvsh.github.io`, `web.telegram.org`, `t.me`)
+- **XSS:** All user content rendered via `textContent`
+- **Input Validation:** 5MB max audio, proper ID parsing
+- **Error Handling:** Internal errors logged, generic messages to client
+- **Secrets:** API keys in environment variables, never exposed to client
 
 ---
 
 ## Privacy
 
-- All task data is stored exclusively in Telegram CloudStorage
-- No external databases or third-party accounts required
-- Gemini API requests are proxied through Cloudflare Worker (API key never exposed to client)
+- Task data stored in PostgreSQL on private VPS
+- Telegram user ID used for authentication (no passwords)
+- Gemini API requests proxied (API key hidden)
 - No analytics or tracking
 
 ---
