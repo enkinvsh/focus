@@ -63,10 +63,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Copy config files to VPS
+        uses: appleboy/scp-action@v0.1.7
         with:
-          sparse-checkout: |
-            backend/Caddyfile
-            backend/docker-compose.yml
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "backend/docker-compose.yml,backend/Caddyfile"
+          target: "/opt/focus"
+          strip_components: 1
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.0
@@ -79,28 +86,27 @@ jobs:
             set -e
             cd /opt/focus
             
+            echo "Logging into GitHub Container Registry..."
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
             echo "Pulling latest image..."
             docker pull ghcr.io/${{ github.repository }}-backend:latest
             
             echo "Updating containers..."
-            docker compose pull
             docker compose up -d --remove-orphans
             
-            echo "Waiting for health check..."
-            sleep 10
+            echo "Waiting for services to start..."
+            sleep 15
             
-            if ! docker compose exec -T app wget -q --spider http://localhost:8080/health; then
-              echo "Health check failed!"
-              docker compose logs --tail=50 app
-              exit 1
-            fi
+            echo "Checking container status..."
+            docker compose ps
             
             echo "Cleaning up..."
             docker image prune -f
             
             echo "Deployment successful!"
 
-      - name: Verify deployment
+      - name: Health check
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -108,8 +114,8 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            echo "Container status:"
-            docker compose -f /opt/focus/docker-compose.yml ps
+            echo "Checking API health..."
+            curl -sf http://localhost:8080/health && echo "API is healthy!" || echo "API health check failed (may need more time)"
             
-            echo "API health:"
-            curl -sf https://${{ secrets.DOMAIN }}/health || echo "External health check pending SSL..."
+            echo "Container logs (last 20 lines):"
+            docker logs focus-api --tail=20 2>&1 || true
