@@ -1046,37 +1046,64 @@ Generate tasks now:`;
             setAgentStatus('Thinking');
             haptic('medium');
             
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'voice.webm');
-            formData.append('type', state.currentTab);
-            formData.append('language', i18n[state.language].agent_prompt_lang);
-            
             try {
-                // Use Go backend API
-                const API_URL = window.location.hostname === 'localhost' 
-                    ? 'http://localhost:8080' 
-                    : 'https://api.meybz.asia';
+                const WORKER_URL = 'https://focus.enkinvsh.workers.dev?model=gemini-2.0-flash';
+                const taskType = state.currentTab;
+                const language = i18n[state.language].agent_prompt_lang;
                 
-                const resp = await fetch(`${API_URL}/api/v1/tasks/audio`, {
+                const base64Audio = await blobToBase64(audioBlob);
+                
+                const prompt = `Listen to this audio and extract tasks from what the user said.
+
+Task type: "${taskType}"
+Language for output: ${language}
+
+Create tasks with these rules:
+- Title: 2-4 words, action verb, no articles
+- Type: "${taskType}"
+- Priority: 1 (urgent), 2 (important), or 3 (quick)
+
+Return a JSON array of tasks only.`;
+
+                const geminiRequest = {
+                    contents: [{
+                        parts: [
+                            { inline_data: { mime_type: audioBlob.type, data: base64Audio } },
+                            { text: prompt }
+                        ]
+                    }],
+                    generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
+                    safetySettings: [
+                        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                    ]
+                };
+
+                const resp = await fetch(WORKER_URL, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `tma ${tg.initData}`
-                    },
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(geminiRequest)
                 });
                 
-                if (!resp.ok) throw new Error('API error');
+                if (!resp.ok) throw new Error('Gemini API error');
                 
                 const data = await resp.json();
-                const newTasks = data.tasks || [];
+                
+                if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+                    throw new Error('Invalid Gemini response');
+                }
+                
+                const tasksJson = data.candidates[0].content.parts[0].text;
+                const newTasks = JSON.parse(tasksJson);
                 
                 newTasks.forEach(t => {
-                    // Backend returns full task objects, add to local state
                     state.tasks.push({
-                        id: t.id || Date.now() + Math.random(),
+                        id: Date.now() + Math.random(),
                         title: t.title,
-                        original: t.original_input || '[voice]',
-                        type: t.task_type || state.currentTab,
+                        original: '[voice]',
+                        type: t.type || taskType,
                         priority: t.priority || 2,
                         completed: false
                     });
@@ -1088,10 +1115,21 @@ Generate tasks now:`;
                 haptic('success');
             } catch (e) {
                 console.error('Audio API error:', e);
-                // Fallback to text-based agent if audio fails
                 setAgentStatus('Ready');
                 haptic('error');
             }
+        }
+        
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
         }
         
         // Initialize voice button
