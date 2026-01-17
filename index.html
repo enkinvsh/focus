@@ -826,7 +826,8 @@ Generate tasks now:`;
 
         function createCard(task, cls, t) {
             const d = document.createElement('div');
-            const dateStr = new Date().toLocaleDateString(state.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
+            const taskDate = task.createdAt ? new Date(task.createdAt) : new Date();
+            const dateStr = taskDate.toLocaleDateString(state.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
             d.className = `task-card bg-white text-brand-black rounded-3xl p-5 relative overflow-hidden flex flex-col justify-between ${cls}`;
             d.onclick = () => openActionModal(task.id);
             d.innerHTML = `<div class="flex justify-between items-start opacity-50"><span class="text-[9px] font-extrabold uppercase tracking-tighter bg-brand-black/10 px-2 py-1 rounded">${task.priority === 1 ? t.main : t.side}</span><span class="text-[9px] font-bold uppercase">${dateStr}</span></div><div class="z-10"><h3 class="font-extrabold leading-tight line-clamp-3">${task.title}</h3></div><div class="absolute bottom-0 right-0 w-24 h-24 bg-brand-green opacity-20 rounded-full blur-2xl translate-y-8 translate-x-8"></div>`;
@@ -1058,12 +1059,14 @@ Generate tasks now:`;
 Task type: "${taskType}"
 Language for output: ${language}
 
-Return a JSON array where each task has exactly these fields:
-- "title": string (2-4 words, action verb, no articles)
-- "type": "${taskType}"
-- "priority": number (1=urgent, 2=important, 3=quick)
+Return a JSON object with:
+- "transcript": string (exact words the user said)
+- "tasks": array where each task has:
+  - "title": string (2-4 words, action verb, no articles)
+  - "type": "${taskType}"
+  - "priority": number (1=urgent, 2=important, 3=quick)
 
-Example: [{"title":"Buy groceries","type":"Task","priority":2}]`;
+Example: {"transcript":"I need to buy milk and call mom","tasks":[{"title":"Buy milk","type":"Task","priority":2},{"title":"Call mom","type":"Task","priority":2}]}`;
 
                 const geminiRequest = {
                     contents: [{
@@ -1096,9 +1099,12 @@ Example: [{"title":"Buy groceries","type":"Task","priority":2}]`;
                 }
                 
                 const tasksJson = data.candidates[0].content.parts[0].text;
-                const newTasks = JSON.parse(tasksJson);
+                const parsed = JSON.parse(tasksJson);
                 
-                console.log('Gemini returned tasks:', newTasks);
+                console.log('Gemini returned:', parsed);
+                
+                const transcript = parsed.transcript || '[voice]';
+                const newTasks = parsed.tasks || (Array.isArray(parsed) ? parsed : []);
                 
                 newTasks.forEach(t => {
                     const priority = typeof t.priority === 'number' ? t.priority : 
@@ -1107,10 +1113,11 @@ Example: [{"title":"Buy groceries","type":"Task","priority":2}]`;
                     state.tasks.push({
                         id: Date.now() + Math.random(),
                         title: t.title || t.name || t.task || 'New task',
-                        original: '[voice]',
+                        original: transcript,
                         type: t.type || taskType,
                         priority: priority,
-                        completed: false
+                        completed: false,
+                        createdAt: Date.now()
                     });
                 });
                 
