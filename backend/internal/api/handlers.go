@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,19 +14,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultLimit = 50
+	maxLimit     = 200
+	maxAudioSize = 5 * 1024 * 1024 // 5MB
+)
+
 func GetTasks(c *gin.Context) {
 	user := GetUser(c)
 	taskType := c.DefaultQuery("type", "Task")
 	completed := c.DefaultQuery("completed", "false") == "true"
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(defaultLimit)))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit <= 0 || limit > maxLimit {
+		limit = defaultLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	rows, err := db.Pool.Query(context.Background(), `
 		SELECT id, title, original_input, task_type, priority, completed, created_at
 		FROM tasks 
 		WHERE user_id = $1 AND task_type = $2 AND completed = $3
 		ORDER BY priority ASC, created_at DESC
-	`, user.ID, taskType, completed)
+		LIMIT $4 OFFSET $5
+	`, user.ID, taskType, completed, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("GetTasks error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tasks"})
 		return
 	}
 	defer rows.Close()
@@ -34,6 +52,7 @@ func GetTasks(c *gin.Context) {
 	for rows.Next() {
 		var t models.Task
 		if err := rows.Scan(&t.ID, &t.Title, &t.OriginalInput, &t.TaskType, &t.Priority, &t.Completed, &t.CreatedAt); err != nil {
+			log.Printf("GetTasks scan error: %v", err)
 			continue
 		}
 		t.UserID = user.ID
@@ -43,7 +62,7 @@ func GetTasks(c *gin.Context) {
 	if tasks == nil {
 		tasks = []models.Task{}
 	}
-	c.JSON(http.StatusOK, gin.H{"tasks": tasks})
+	c.JSON(http.StatusOK, gin.H{"tasks": tasks, "limit": limit, "offset": offset})
 }
 
 func CreateTask(c *gin.Context) {
@@ -51,7 +70,7 @@ func CreateTask(c *gin.Context) {
 
 	var req models.CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
@@ -67,7 +86,8 @@ func CreateTask(c *gin.Context) {
 	`, user.ID, req.Title, req.Original, req.Type, req.Priority).Scan(&task.ID, &task.CreatedAt)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("CreateTask error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
 		return
 	}
 
@@ -83,11 +103,15 @@ func CreateTask(c *gin.Context) {
 
 func UpdateTask(c *gin.Context) {
 	user := GetUser(c)
-	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	taskID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+		return
+	}
 
 	var req models.UpdateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
@@ -109,7 +133,8 @@ func UpdateTask(c *gin.Context) {
 	`, req.Title, req.Priority, req.Completed, completedAt, taskID, user.ID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("UpdateTask error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
 		return
 	}
 
@@ -123,14 +148,19 @@ func UpdateTask(c *gin.Context) {
 
 func DeleteTask(c *gin.Context) {
 	user := GetUser(c)
-	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	taskID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+		return
+	}
 
 	result, err := db.Pool.Exec(context.Background(), `
 		DELETE FROM tasks WHERE id = $1 AND user_id = $2
 	`, taskID, user.ID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("DeleteTask error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
 		return
 	}
 
@@ -166,7 +196,7 @@ func UpdatePreferences(c *gin.Context) {
 		ThemeIndex *int    `json:"theme_index"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
@@ -181,7 +211,8 @@ func UpdatePreferences(c *gin.Context) {
 	`, user.ID, user.FirstName, user.Username, req.Language, req.Timezone, req.ThemeIndex)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("UpdatePreferences error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update preferences"})
 		return
 	}
 
@@ -198,9 +229,18 @@ func CreateTaskFromAudio(c *gin.Context) {
 	}
 	defer file.Close()
 
-	audioData, err := io.ReadAll(file)
+	if header.Size > maxAudioSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "audio file too large (max 5MB)"})
+		return
+	}
+
+	audioData, err := io.ReadAll(io.LimitReader(file, maxAudioSize+1))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read audio"})
+		return
+	}
+	if int64(len(audioData)) > maxAudioSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "audio file too large (max 5MB)"})
 		return
 	}
 
@@ -214,7 +254,8 @@ func CreateTaskFromAudio(c *gin.Context) {
 
 	parsedTasks, err := services.TranscribeAndParseTasks(audioData, mimeType, taskType, language)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("TranscribeAndParseTasks error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process audio"})
 		return
 	}
 
@@ -238,6 +279,7 @@ func CreateTaskFromAudio(c *gin.Context) {
 		`, user.ID, title, "[voice]", tType, priority).Scan(&task.ID, &task.CreatedAt)
 
 		if err != nil {
+			log.Printf("CreateTaskFromAudio insert error: %v", err)
 			continue
 		}
 
