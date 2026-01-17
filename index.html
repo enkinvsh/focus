@@ -913,7 +913,7 @@ Generate tasks now:`;
                 // Use Go backend API
                 const API_URL = window.location.hostname === 'localhost' 
                     ? 'http://localhost:8080' 
-                    : 'https://api.oen.meybz.asia';
+                    : 'https://api.meybz.asia';
                 
                 const resp = await fetch(`${API_URL}/api/v1/tasks/audio`, {
                     method: 'POST',
