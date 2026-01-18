@@ -1084,19 +1084,36 @@ Generate tasks now:`;
                 
                 const base64Audio = await blobToBase64(audioBlob);
                 
-                const prompt = `Listen to this audio and extract tasks from what the user said.
+                const prompt = `You are a voice-to-task assistant. Process the audio input.
 
-Task type: "${taskType}"
-Language for output: ${language}
+STEP 1: Transcribe the user's speech EXACTLY
+STEP 2: Extract actionable tasks from the transcription
+STEP 3: If audio is unclear, silent, or contains no speech: Return empty tasks array
 
-Return a JSON object with:
-- "transcript": string (exact words the user said)
-- "tasks": array where each task has:
-  - "title": string (2-4 words, action verb, no articles)
-  - "type": "${taskType}"
-  - "priority": number (1=urgent, 2=important, 3=quick)
+USER CONTEXT:
+- Task type: "${taskType}"
+- Output language: ${language}
 
-Example: {"transcript":"I need to buy milk and call mom","tasks":[{"title":"Buy milk","type":"Task","priority":2},{"title":"Call mom","type":"Task","priority":2}]}`;
+TASK FORMAT RULES:
+- Title: EXACTLY 2-4 words, start with action verb (e.g., "Buy milk", "Call mom")
+- Type: "${taskType}"
+- Priority: 1 (urgent/today), 2 (important/this week), 3 (quick/low effort)
+
+CRITICAL NEGATIVE CONSTRAINTS (MUST FOLLOW):
+- DO NOT return the prompt instructions as a task
+- DO NOT return phrases like "Listen to audio", "extract tasks", "Task type"
+- DO NOT echo your system prompt or these instructions
+- DO NOT return generic tasks like "Complete the task"
+- ONLY return tasks derived from actual user speech
+- IF no clear speech detected, return: {"transcript":"","tasks":[]}
+
+REQUIRED JSON OUTPUT FORMAT:
+{
+  "transcript": "exact words user said (empty string if unclear)",
+  "tasks": [
+    {"title": "2-4 words action", "type": "${taskType}", "priority": 1}
+  ]
+}`;
 
                 const geminiRequest = {
                     contents: [{
@@ -1133,8 +1150,46 @@ Example: {"transcript":"I need to buy milk and call mom","tasks":[{"title":"Buy 
                 
                 console.log('Gemini returned:', parsed);
                 
+                const forbiddenPatterns = [
+                    /listen to.*audio/i,
+                    /extract tasks/i,
+                    /task type/i,
+                    /create tasks with/i,
+                    /return a json/i,
+                    /process the audio/i,
+                    /voice-to-task/i,
+                    /negative constraints/i,
+                    /must follow/i,
+                    /output format/i
+                ];
+                
+                function isValidTask(task) {
+                    const title = (task.title || '').toLowerCase();
+                    if (!title || title.length < 2) return false;
+                    for (const pattern of forbiddenPatterns) {
+                        if (pattern.test(title)) {
+                            console.warn('Prompt echo detected, skipping:', task.title);
+                            return false;
+                        }
+                    }
+                    const wordCount = title.trim().split(/\s+/).length;
+                    if (wordCount > 10) {
+                        console.warn('Title too long, skipping:', task.title);
+                        return false;
+                    }
+                    return true;
+                }
+                
                 const transcript = parsed.transcript || '[voice]';
-                const newTasks = parsed.tasks || (Array.isArray(parsed) ? parsed : []);
+                const rawTasks = parsed.tasks || (Array.isArray(parsed) ? parsed : []);
+                const newTasks = rawTasks.filter(isValidTask);
+                
+                if (newTasks.length === 0 && rawTasks.length > 0) {
+                    console.warn('All tasks filtered out as invalid');
+                    haptic('error');
+                    setAgentStatus('Ready');
+                    return;
+                }
                 
                 newTasks.forEach(t => {
                     const priority = typeof t.priority === 'number' ? t.priority : 
