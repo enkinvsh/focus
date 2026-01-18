@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"io"
 	"log"
 	"net/http"
@@ -34,7 +33,7 @@ func GetTasks(c *gin.Context) {
 		offset = 0
 	}
 
-	rows, err := db.Pool.Query(context.Background(), `
+	rows, err := db.Pool.Query(c.Request.Context(), `
 		SELECT id, title, original_input, task_type, priority, completed, created_at
 		FROM tasks 
 		WHERE user_id = $1 AND task_type = $2 AND completed = $3
@@ -79,7 +78,7 @@ func CreateTask(c *gin.Context) {
 	}
 
 	var task models.Task
-	err := db.Pool.QueryRow(context.Background(), `
+	err := db.Pool.QueryRow(c.Request.Context(), `
 		INSERT INTO tasks (user_id, title, original_input, task_type, priority)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at
@@ -121,7 +120,7 @@ func UpdateTask(c *gin.Context) {
 		completedAt = &now
 	}
 
-	result, err := db.Pool.Exec(context.Background(), `
+	result, err := db.Pool.Exec(c.Request.Context(), `
 		UPDATE tasks 
 		SET 
 			title = COALESCE($1, title),
@@ -154,7 +153,7 @@ func DeleteTask(c *gin.Context) {
 		return
 	}
 
-	result, err := db.Pool.Exec(context.Background(), `
+	result, err := db.Pool.Exec(c.Request.Context(), `
 		DELETE FROM tasks WHERE id = $1 AND user_id = $2
 	`, taskID, user.ID)
 
@@ -176,7 +175,7 @@ func GetPreferences(c *gin.Context) {
 	user := GetUser(c)
 
 	var u models.User
-	err := db.Pool.QueryRow(context.Background(), `
+	err := db.Pool.QueryRow(c.Request.Context(), `
 		SELECT language, timezone, theme_index FROM users WHERE id = $1
 	`, user.ID).Scan(&u.Language, &u.Timezone, &u.ThemeIndex)
 
@@ -200,7 +199,7 @@ func UpdatePreferences(c *gin.Context) {
 		return
 	}
 
-	_, err := db.Pool.Exec(context.Background(), `
+	_, err := db.Pool.Exec(c.Request.Context(), `
 		INSERT INTO users (id, first_name, username, language, timezone, theme_index)
 		VALUES ($1, $2, $3, COALESCE($4, 'en'), COALESCE($5, 'UTC'), COALESCE($6, 0))
 		ON CONFLICT (id) DO UPDATE SET
@@ -272,7 +271,7 @@ func CreateTaskFromAudio(c *gin.Context) {
 		}
 
 		var task models.Task
-		err := db.Pool.QueryRow(context.Background(), `
+		err := db.Pool.QueryRow(c.Request.Context(), `
 			INSERT INTO tasks (user_id, title, original_input, task_type, priority)
 			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id, created_at

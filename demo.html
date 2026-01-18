@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder Button</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles to match requirements */
+        :root {
+            --brand-green: #22c55e;
+            --brand-red: #ef4444;
+            --ring-circumference: 188.5; /* 2 * pi * 30 */
+        }
+
+        .recorder-container {
+            position: relative;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* SVG Ring Styles */
+        .progress-ring {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg); /* Start from top */
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .progress-ring__track {
+            stroke: rgba(255, 255, 255, 0.1); /* Subtle track */
+            stroke-width: 3;
+            fill: none;
+        }
+
+        .progress-ring__circle {
+            stroke: var(--brand-red);
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-dasharray: var(--ring-circumference);
+            stroke-dashoffset: var(--ring-circumference);
+            /* We will handle animation via class */
+        }
+
+        /* Animation class */
+        .is-recording .progress-ring__circle {
+            animation: progress 8s linear forwards;
+        }
+
+        .is-recording #voice-btn {
+            background-color: var(--brand-red);
+            transform: scale(0.9); /* Slight press effect */
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); /* Glow */
+        }
+        
+        /* Glassmorphism/Premium feel */
+        #voice-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 20;
+        }
+
+        @keyframes progress {
+            from {
+                stroke-dashoffset: var(--ring-circumference);
+            }
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        /* Waveform animation tweak */
+        .is-recording #mic-icon {
+            display: none;
+        }
+        .is-recording #waveform {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center h-screen text-white">
+
+    <!-- Container -->
+    <div class="recorder-container" id="recorder-container">
+        <!-- SVG Ring -->
+        <svg class="progress-ring" viewBox="0 0 70 70">
+            <!-- Track (faint background ring) -->
+            <circle class="progress-ring__track" cx="35" cy="35" r="30"></circle>
+            <!-- Progress Indicator -->
+            <circle class="progress-ring__circle" cx="35" cy="35" r="30"></circle>
+        </svg>
+
+        <!-- Button -->
+        <button id="voice-btn" class="w-14 h-14 rounded-full bg-green-500 flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-transform">
+            <!-- Mic Icon -->
+            <svg id="mic-icon" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-14 0m7 7v4m-4 0h8m-4-8a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z"/>
+            </svg>
+            <!-- Waveform (Hidden by default) -->
+            <div id="waveform" class="hidden flex gap-0.5 items-center h-5">
+                <div class="w-0.5 h-2 bg-white rounded animate-pulse"></div>
+                <div class="w-0.5 h-4 bg-white rounded animate-pulse delay-75"></div>
+                <div class="w-0.5 h-3 bg-white rounded animate-pulse delay-150"></div>
+                <div class="w-0.5 h-5 bg-white rounded animate-pulse delay-200"></div>
+                <div class="w-0.5 h-2 bg-white rounded animate-pulse delay-300"></div>
+            </div>
+        </button>
+    </div>
+
+    <div class="fixed bottom-10 text-center text-gray-400 text-sm">
+        Click to toggle recording
+    </div>
+
+    <script>
+        const container = document.getElementById('recorder-container');
+        const btn = document.getElementById('voice-btn');
+        const circle = document.querySelector('.progress-ring__circle');
+        let isRecording = false;
+        let timeout;
+
+        btn.addEventListener('click', () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            isRecording = true;
+            container.classList.add('is-recording');
+            
+            // Auto stop after 8 seconds
+            timeout = setTimeout(() => {
+                stopRecording();
+            }, 8000);
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            // Get computed style to freeze animation? 
+            // Or just remove class to reset.
+            // Requirement: "Animation should stop" -> usually implies freeze or reset.
+            // If it finishes, it stays full or resets.
+            // For a button like this, usually resets.
+            
+            // To pause it exactly where it is (optional refinement):
+            // const computedStyle = window.getComputedStyle(circle);
+            // const dashOffset = computedStyle.getPropertyValue('stroke-dashoffset');
+            // circle.style.strokeDashoffset = dashOffset;
+            // circle.style.animation = 'none';
+            
+            // But simple reset is usually safer for state machine
+            container.classList.remove('is-recording');
+            clearTimeout(timeout);
+        }
+    </script>
+</body>
+</html>
