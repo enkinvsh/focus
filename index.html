@@ -1105,7 +1105,8 @@ Generate tasks now:`;
                 const base64Audio = await blobToBase64(audioBlob);
                 
                 const prompt = `Transcribe this ${language} speech and extract ${taskType.toLowerCase()} tasks.
-Return JSON only: {"transcript": "what user said", "tasks": [{"title": "2-4 words", "type": "${taskType}", "priority": 1-3}]}
+IMPORTANT: Write task titles in ${language}.
+Return JSON only: {"transcript": "what user said", "tasks": [{"title": "2-4 words in ${language}", "type": "${taskType}", "priority": 1-3}]}
 If audio unclear, return: {"transcript": "", "tasks": []}`;
 
                 const geminiRequest = {
