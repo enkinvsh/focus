@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgres://focus:${DB_PASSWORD}@postgres:5432/focus?sslmode=disable
       BOT_TOKEN: ${BOT_TOKEN:?BOT_TOKEN is required}
       GEMINI_KEY: ${GEMINI_KEY:?GEMINI_KEY is required}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
       PORT: 8080
     depends_on:
       postgres:
